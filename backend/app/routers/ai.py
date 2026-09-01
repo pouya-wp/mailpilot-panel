@@ -448,6 +448,46 @@ def _degraded(lang: str, why: str) -> dict:
     }
 
 
+#: The model's own prose is not length-limited by anything upstream. A runaway
+#: answer came back at 244KB in testing and went straight to the browser, where
+#: it is laid out, measured and painted — on a phone that is a frozen tab.
+MAX_REPLY = 4000
+MAX_LINE = 400
+
+
+def _text(value: object, limit: int) -> str:
+    """A string, whatever the model actually sent.
+
+    `str(x or "")` is not enough: the model returns numbers, nulls, lists and
+    objects in fields the shape says are strings, and every one of those
+    reaches the browser as-is.
+    """
+    if value is None or isinstance(value, (dict, list, tuple)):
+        return ""
+    return str(value).strip()[:limit]
+
+
+def _lines(value: object, count: int) -> list[str]:
+    """A list of short strings.
+
+    `for x in (out.get("needs") or [])` raised TypeError and 500'd the whole
+    request when the model returned `needs: 5` — which it does, because a JSON
+    shape in a prompt is a request, not a contract.
+    """
+    if isinstance(value, (str, bytes)):
+        return [_text(value, MAX_LINE)] if str(value).strip() else []
+    if not isinstance(value, (list, tuple)):
+        return []
+    out = []
+    for item in value:
+        line = _text(item, MAX_LINE)
+        if line:
+            out.append(line)
+        if len(out) >= count:
+            break
+    return out
+
+
 @router.post("/ask")
 def ask(payload: AskIn, principal: Principal = Depends(requires("content.edit"))) -> dict:
     """The panel's single input.
@@ -509,14 +549,14 @@ def ask(payload: AskIn, principal: Principal = Depends(requires("content.edit"))
     return {
         "ok": True,
         "source": "openai",
-        "reply": str(out.get("reply") or "").strip(),
+        "reply": _text(out.get("reply"), MAX_REPLY),
         "intent": str(out.get("intent") or "other"),
         "draft": draft,
         "audience": audience,
         "did": did,
         "pending": pending,
-        "steps": [str(x) for x in (out.get("steps") or []) if str(x).strip()][:6],
-        "needs": [str(x) for x in (out.get("needs") or []) if str(x).strip()][:4],
+        "steps": _lines(out.get("steps"), 6),
+        "needs": _lines(out.get("needs"), 4),
         # Present only when the agent actually searched. An answer that quotes
         # the outside world should be able to show where it read it.
         "citations": out.get("_citations") or [],

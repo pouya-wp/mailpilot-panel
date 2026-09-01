@@ -415,12 +415,17 @@ def run(tool: str, args: dict, *, actor: str = "agent") -> dict:
     return runner(args, actor)
 
 
-def summarise(tool: str, args: dict) -> str:
+def summarise(tool: str, args: Any) -> str:
     """One line describing a pending action, for the button the human presses.
 
     Built here from the validated arguments rather than taken from the model's
     prose, so what the operator approves is what will actually happen.
     """
+    # `args` arrives from the model. `execute` checks the ACTION is an object
+    # and did not check the same of its arguments, so `{"tool": "send_email",
+    # "args": "nope"}` reached `.get()` and 500'd the request.
+    if not isinstance(args, dict):
+        return tool.replace("_", " ")
     if tool == "send_email":
         to = args.get("to")
         to = [to] if isinstance(to, str) else (to or [])
@@ -449,8 +454,13 @@ def execute(actions: Any, *, actor: str = "agent") -> tuple[list[dict], list[dic
         if not isinstance(action, dict):
             continue
         tool = str(action.get("tool") or "").strip()
-        args = action.get("args") or {}
+        args = action.get("args")
         if tool not in RUNNERS:
+            continue
+        # the model is asked for an object here and does not always send one
+        if not isinstance(args, dict):
+            done.append({"tool": tool, "ok": False,
+                         "error": "the arguments were not an object"})
             continue
 
         # `suggest` means the agent proposes and never acts; the operator chose
