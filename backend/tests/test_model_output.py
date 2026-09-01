@@ -32,7 +32,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.seed import bootstrap  # noqa: E402
+from app.seed import seed  # noqa: E402
 
 #: Everything the client reads without checking. A missing key here is a
 #: `undefined is not a function` in the browser.
@@ -41,8 +41,12 @@ REQUIRED = ("reply", "intent", "draft", "audience", "steps", "needs", "did", "pe
 
 @pytest.fixture(scope="module")
 def client():
+    # `seed(force=True)` and the same owner as every other test file. The env
+    # vars above are set at import time and the FIRST test module to import
+    # wins, so a fixture that assumes its own database finds somebody else's —
+    # which is why this passed alone and failed in the suite.
     db.init_db()
-    bootstrap()
+    seed(force=True)
     db.update("deployment", "1", {"ai_key": "sk-test"})
     with TestClient(app) as c:
         yield c
@@ -51,10 +55,9 @@ def client():
 
 @pytest.fixture(scope="module")
 def auth(client):
-    from app.config import settings
-
     r = client.post("/api/auth/login",
-                    json={"email": settings.demo_email, "password": settings.demo_password})
+                    json={"email": "pouya@acme.io", "password": "mailpilot"})
+    assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
