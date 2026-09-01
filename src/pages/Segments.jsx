@@ -82,9 +82,12 @@ export default function Segments({ onToast, embedded }) {
   const compile = async () => {
     try {
       const out = await ask({ prompt })
-      setRules(out.rules.map((r, i) => ({ id: i + 1, ...r })))
-      setMatch(out.match)
-      setPreview(out.preview)
+      // Guarded, though the endpoint does promise these. A shape error here
+      // surfaces to the reader as "Cannot read properties of undefined",
+      // which tells them nothing they can act on.
+      setRules((out.rules || []).map((r, i) => ({ id: i + 1, ...r })))
+      setMatch(out.match || 'all')
+      setPreview(out.preview || null)
     } catch (err) {
       onToast?.(err.message || t('err.failed'))
     }

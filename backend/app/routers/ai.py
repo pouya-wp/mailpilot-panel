@@ -376,6 +376,18 @@ def build_segment(payload: SegmentAskIn, _: Principal = Depends(requires("contac
 
     from .audience import UnknownField, _compile_rules
 
+    if not rules:
+        # `_compile_rules([])` is `1=1` — every contact there is. Previewing
+        # that as "matches 25,000 people" invites saving a group nobody
+        # described. `POST /segments` refuses it at save; this refuses it a
+        # step earlier, where the reader can still see why.
+        raise HTTPException(
+            status_code=422,
+            detail=("I could not turn that into a rule. Try naming a field — "
+                    "how much they have spent, when they last opened something, "
+                    "a tag they carry."),
+        )
+
     try:
         where, params = _compile_rules(rules, "all")
     except UnknownField as exc:

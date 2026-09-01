@@ -114,24 +114,64 @@ async function refresh() {
 
 /* ---------------------------------------------------------------- request */
 
+/* How long to wait before giving up.
+ *
+ * There was no timeout at all: a wedged server or a dropped connection left
+ * every request pending forever, and the panel span a loader with no error and
+ * no way to know it should be retried. A spinner that never resolves is worse
+ * than a failure, because nobody reaches for the reload button.
+ *
+ * The AI calls are genuinely slow — research reads several web pages, a
+ * template is a whole HTML document — so a blanket short limit would fail the
+ * requests most worth waiting for. Two numbers rather than one. */
+const TIMEOUT_MS = 30_000
+const SLOW_TIMEOUT_MS = 180_000
+const SLOW_PATHS = ['/ai/', '/research/', '/google/sync', '/contacts/import']
+
+function budgetFor(path) {
+  return SLOW_PATHS.some((p) => path.startsWith(p)) ? SLOW_TIMEOUT_MS : TIMEOUT_MS
+}
+
 async function request(method, path, { body, signal, retry = true, auth = true } = {}) {
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (auth && tokens.access) headers.Authorization = `Bearer ${tokens.access}`
+
+  /* The caller's own signal still works and still wins — this only adds a
+     ceiling for the callers that pass none, which is all of them. */
+  const clock = new AbortController()
+  const timer = setTimeout(() => clock.abort(new DOMException('timeout', 'TimeoutError')),
+                           budgetFor(path))
+  const onCallerAbort = () => clock.abort(signal.reason)
+  if (signal) {
+    if (signal.aborted) clock.abort(signal.reason)
+    else signal.addEventListener('abort', onCallerAbort, { once: true })
+  }
 
   let res
   try {
     res = await fetch(`${BASE}${path}`, {
       method,
       headers,
-      signal,
+      signal: clock.signal,
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch (err) {
+    // the caller aborted on purpose — theirs to handle, not ours to relabel
+    if (signal?.aborted) throw err
+    if (clock.signal.aborted) {
+      const seconds = Math.round(budgetFor(path) / 1000)
+      throw new ApiError(0, {
+        detail: `The server did not answer within ${seconds} seconds. It may still be working — check before trying again.`,
+      }, '')
+    }
     if (err?.name === 'AbortError') throw err
     // a network failure is not a 500 — say so, or the reader goes looking
     // for a server problem that does not exist
     throw new ApiError(0, { detail: 'Could not reach the server' }, '')
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener?.('abort', onCallerAbort)
   }
 
   if (res.status === 401 && retry && auth && tokens.refresh) {

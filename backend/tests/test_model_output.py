@@ -127,3 +127,21 @@ def test_summarise_never_raises_on_model_input():
     for args in ("string", None, 42, ["a"], {"to": "one@example.com", "subject": "S"}):
         assert isinstance(tools.summarise("send_email", args), str)
         assert isinstance(tools.summarise("send_campaign", args), str)
+
+
+def test_a_sentence_that_compiles_to_no_rule_is_refused(client, auth, monkeypatch):
+    """`_compile_rules([])` is `1=1` — every contact there is.
+
+    Previewing that as "matches 25,000 people" invites saving a group nobody
+    described, and the whole point of returning rules instead of saving them is
+    that a human sees the machine's reading first. `POST /segments` refuses it
+    at save; this refuses it a step earlier, where the reader can still see why.
+    """
+    from app.routers import ai as ai_router
+
+    monkeypatch.setattr(ai_router, "_compile", lambda prompt: [])
+    r = client.post("/api/ai/segment", headers=auth,
+                    json={"prompt": "people who are nice"})
+    assert r.status_code == 422
+    detail = r.json()["detail"].lower()
+    assert "rule" in detail and "spent" in detail  # says what to try instead
