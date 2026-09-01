@@ -255,7 +255,7 @@ function StepBrand({ draft, patch, t }) {
         <Field label={t('setup.brand.name')} required>
           <Input
             value={draft.brand.name || ''}
-            placeholder="Northwind"
+            placeholder={t('setup.brand.namePh')}
             onChange={(e) => patch('brand', { name: e.target.value })}
           />
         </Field>
@@ -497,7 +497,7 @@ function StepSending({ draft, patch, t, onToast }) {
         <Field label={t('setup.sending.fromName')}>
           <Input
             value={draft.sending.fromName || ''}
-            placeholder="Northwind"
+            placeholder={t('setup.sending.fromNamePh')}
             onChange={(e) => patch('sending', { fromName: e.target.value })}
           />
         </Field>
@@ -538,7 +538,7 @@ function StepAgent({ draft, patch, catalog, t }) {
         <Field label={t('setup.agent.name')} required>
           <Input
             value={draft.agent.name || ''}
-            placeholder="Nova"
+            placeholder={t('setup.agent.namePh')}
             onChange={(e) => patch('agent', { name: e.target.value })}
           />
         </Field>

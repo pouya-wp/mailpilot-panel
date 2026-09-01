@@ -169,9 +169,14 @@
   inset-inline-end: 2.4rem;
   bottom: 2rem;
   z-index: 65;
-  width: 27rem;
+  /* Sized for a paragraph, not a one-liner. At the 9.4rem floor this is a
+     320x432 window; the old 27x35rem gave a 171px-wide text column, which
+     ran a three-sentence answer to eleven lines and put most of the panel
+     behind a scroll. Persian sets wider than English at the same size, so
+     the narrow column cost it twice. */
+  width: 34rem;
   max-width: calc(100vw - 4rem);
-  height: 35rem;
+  height: 46rem;
   max-height: calc(100vh - 10rem);
   display: flex;
   flex-direction: column;

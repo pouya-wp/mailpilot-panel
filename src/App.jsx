@@ -271,7 +271,7 @@ function Shell() {
       </div>
 
       <span className="grain" aria-hidden="true" />
-      <SupportAgent panelState={{ segment: 'VIP Users', agent: 'NOVA', recipients: '25,000' }} />
+      <SupportAgent />
 
       <CommandPalette open={cmd} onClose={() => setCmd(false)} />
 

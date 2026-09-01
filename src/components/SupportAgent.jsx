@@ -7,6 +7,8 @@ import { CENTRE, TALKING, WINK, gazeKey, withGazeGrid } from '../avatar/gaze'
 import { answerFor } from '../avatar/answers'
 import { canSpeak, probeEngine, speak, stopSpeaking } from '../avatar/speech'
 import SupportChat from './SupportChat'
+import { useI18n } from '../i18n'
+import { useConfig } from '../api/config'
 import { gsap, introStarted, reduced, useGSAP } from '../anim/core'
 
 const definition = withGazeGrid(baseDefinition)
@@ -28,16 +30,22 @@ try {
    looking at a nearby point does. */
 const REACH = 0.55
 
-export default function SupportAgent({ panelState }) {
+export default function SupportAgent() {
+  const { lang, t } = useI18n()
+  const { agent, has } = useConfig()
   const [open, setOpen] = useState(false)
   const [gaze, setGaze] = useState(CENTRE)
   const [mood, setMood] = useState(null) // an animation, overrides gaze
   const [muted, setMuted] = useState(false)
   const [speaking, setSpeaking] = useState(false)
 
-  // read through a ref so `ask` never changes identity as the panel updates
-  const panelStateRef = useRef(panelState)
-  panelStateRef.current = panelState
+  /* Read through a ref so `ask` never changes identity as the panel
+     updates. What goes in is deliberately small: the language, the agent's
+     name and the module gate. The script is not allowed to quote the
+     customer's figures, because it cannot see them — it used to be handed
+     a hardcoded "25,000 contacts in VIP Users" and repeat it to everyone. */
+  const askStateRef = useRef(null)
+  askStateRef.current = { lang, agent: agent?.name, has }
 
   const box = useRef(null)
   const tilt = useRef(null)
@@ -139,7 +147,7 @@ export default function SupportAgent({ panelState }) {
     [muted, playMood]
   )
 
-  const ask = useCallback((q) => answerFor(q, panelStateRef.current), [])
+  const ask = useCallback((q) => answerFor(q, askStateRef.current), [])
   const think = useCallback(() => playMood('thinking', 0), [playMood])
   /* never interrupt speech with the idle pose */
   const listen = useCallback(() => {
@@ -217,7 +225,7 @@ export default function SupportAgent({ panelState }) {
               playMood(WINK, 900)
             }
           }}
-          aria-label={open ? 'Close support' : 'Ask the support agent'}
+          aria-label={open ? t('chat.closeAria') : t('chat.open')}
           aria-expanded={open}
         >
           <span className="agent__tilt" ref={tilt}>
@@ -225,7 +233,7 @@ export default function SupportAgent({ panelState }) {
               animation={mood ?? gaze}
               size="100%"
               className="agent__avatar"
-              ariaLabel="Support agent"
+              ariaLabel={t('chat.role')}
             />
           </span>
         </button>

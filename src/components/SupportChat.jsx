@@ -3,6 +3,7 @@ import { OPENERS } from '../avatar/answers'
 import { gsap, reduced, useGSAP } from '../anim/core'
 import { usePress } from '../anim/hooks'
 import { loc, useI18n } from '../i18n'
+import { useConfig } from '../api/config'
 
 const SUGGESTIONS = [
   { en: 'What can the agent do?', fa: 'ایجنت چه کارهایی می‌تواند بکند؟' },
@@ -12,6 +13,10 @@ const SUGGESTIONS = [
 
 export default function SupportChat({ open, muted, canSpeak, onMute, onClose, onAsk, onThinking, onIdle, onSay }) {
   const { t, lang } = useI18n()
+  /* The header carries the customer's OWN agent name. This product is
+     sold white-labelled as a single agent, and a second character with
+     the vendor's name on it undoes that everywhere it appears. */
+  const { agent } = useConfig()
   const [log, setLog] = useState([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -24,11 +29,15 @@ export default function SupportChat({ open, muted, canSpeak, onMute, onClose, on
   /* greet on first open, and hand the mic back when closed */
   useEffect(() => {
     if (!open) return
-    setLog((l) => (l.length ? l : [{ from: 'bot', text: OPENERS[Math.floor(Math.random() * OPENERS.length)] }]))
+    setLog((l) => {
+      if (l.length) return l
+      const lines = OPENERS[lang] || OPENERS.en
+      return [{ from: 'bot', text: lines[Math.floor(Math.random() * lines.length)] }]
+    })
     onIdle?.()
     const t = setTimeout(() => input.current?.focus(), 420)
     return () => clearTimeout(t)
-  }, [open, onIdle])
+  }, [open, onIdle, lang])
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
@@ -124,15 +133,15 @@ export default function SupportChat({ open, muted, canSpeak, onMute, onClose, on
     <section className={`chat${open ? ' chat--open' : ''}`} ref={panel} aria-hidden={!open}>
       <header className="chat__head">
         <div>
-          <h2 className="chat__title">Onee</h2>
-          <p className="chat__sub">Support agent</p>
+          <h2 className="chat__title">{agent?.name || t('guide.theAgent')}</h2>
+          <p className="chat__sub">{t('chat.role')}</p>
         </div>
         <div className="chat__tools">
           {canSpeak && (
             <button
               className={`chat__icon${muted ? ' chat__icon--off' : ''}`}
               onClick={onMute}
-              aria-label={muted ? 'Unmute voice' : 'Mute voice'}
+              aria-label={muted ? t('chat.unmute') : t('chat.mute')}
             >
               {muted ? <SpeakerOff /> : <Speaker />}
             </button>
