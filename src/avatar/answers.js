@@ -59,9 +59,12 @@ const TOPICS = [
   },
   {
     id: 'self',
+    /* Phrases, not bare pronouns. "who" and "you" on their own swallowed
+       "Who will this be sent to?" — a question about the audience — and
+       answered it with a self-introduction. */
     keys: {
-      en: ['you', 'your', 'name', 'who', 'bot', 'robot', 'assistant'],
-      fa: ['تو', 'شما', 'اسم', 'نام', 'کی', 'چی هستی', 'ربات', 'دستیار'],
+      en: ['who are you', 'what are you', 'your name', 'bot', 'robot', 'assistant', 'chatbot'],
+      fa: ['کی هستی', 'چی هستی', 'کی هستید', 'اسمت', 'نام تو', 'ربات', 'دستیار', 'خودت را معرفی'],
     },
     en: (s) =>
       `I'm ${s.agent}. In this corner I answer questions about the panel from a short script — I'm not the part that writes your emails. That's on the Campaigns screen, and it does use a language model.`,
@@ -71,8 +74,10 @@ const TOPICS = [
   {
     id: 'audience',
     keys: {
-      en: ['audience', 'contact', 'contacts', 'group', 'groups', 'segment', 'list', 'import', 'csv', 'recipients'],
-      fa: ['مخاطب', 'مخاطبان', 'گروه', 'گروه‌بندی', 'لیست', 'فهرست', 'ایمپورت', 'وارد کردن', 'گیرنده'],
+      en: ['audience', 'contact', 'contacts', 'group', 'groups', 'segment', 'list', 'import', 'csv',
+           'recipient', 'recipients', 'subscribers', 'sent to', 'send to', 'go to', 'who will'],
+      fa: ['مخاطب', 'مخاطبان', 'گروه', 'گروه‌بندی', 'لیست', 'فهرست', 'ایمپورت', 'وارد کردن',
+           'گیرنده', 'گیرندگان', 'چه کسانی', 'کسانی', 'برای کی', 'فرستاده می‌شود', 'وارد'],
     },
     en: () =>
       'The Audience screen holds every contact, the groups you sort them into, and the do-not-contact list. You can import a CSV there, and a campaign sends to one group — so a contact has to be in a group before it can be mailed.',
@@ -172,9 +177,14 @@ const TOPICS = [
   },
   {
     id: 'help',
+    /* No bare interrogatives. "how" and "what" — and چطور, چگونه — appear in
+       almost every question anyone asks, so as keys they outscored the topic
+       the question was actually about: "how do I import my contacts" scored
+       as help, and so did "what is the price of gold". This topic is now
+       reached by asking for help, not by asking anything at all. */
     keys: {
-      en: ['help', 'how', 'what', 'guide', 'start', 'begin', 'explain'],
-      fa: ['کمک', 'راهنما', 'چطور', 'چگونه', 'شروع', 'توضیح'],
+      en: ['help', 'guide', 'get started', 'explain', 'what can', 'can you do'],
+      fa: ['کمک', 'راهنما', 'شروع', 'توضیح', 'چه کارهایی', 'چه کاری', 'قابلیت', 'چیکار'],
     },
     en: () =>
       'Ask about contacts, campaigns and sending, Gmail, unsubscribes, or the research agent. The Guide screen has the longer version of all of it.',
@@ -204,8 +214,23 @@ export function answerFor(question, state) {
     agent: state?.agent || (lang === 'fa' ? 'دستیار' : 'the agent'),
     has: typeof state?.has === 'function' ? state.has : () => true,
   }
-  const text = ` ${fold(question || '')} `
-  if (!text.trim()) return FALLBACK[lang]
+  const folded = fold(question || '')
+  if (!folded) return FALLBACK[lang]
+  const text = ` ${folded} `
+  const words = folded.split(' ')
+
+  /* Persian glues its suffixes straight onto the stem — "مخاطبانم" is
+     "my contacts" and "مخاطبان" never appears as a separate word — so
+     whole-word matching misses the ordinary way people write. Persian keys
+     therefore match as a prefix of a word. English does not agglutinate
+     like that, and a prefix rule there would let "list" match "listen", so
+     English stays exact bar the plural. */
+  const arabic = /\p{Script=Arabic}/u
+  const hit = (key) => {
+    if (key.includes(' ')) return text.includes(` ${key} `)
+    if (arabic.test(key)) return words.some((w) => w.startsWith(key))
+    return words.some((w) => w === key || w === `${key}s`)
+  }
 
   let best = null
   let bestScore = 0
@@ -214,12 +239,10 @@ export function answerFor(question, state) {
     let score = 0
     /* Both languages' keywords are scored, because a bilingual customer
        types "gmail" and "کمپین" in one sentence and means both. Longer
-       keys count double: otherwise "how" in "how do I schedule a send"
-       outscores "schedule", and the answer is the generic one. */
+       keys count double, so a specific word beats an incidental one. */
     for (const k of [...topic.keys.en, ...topic.keys.fa]) {
       const key = fold(k)
-      if (!key) continue
-      if (text.includes(` ${key} `) || text.includes(` ${key}s `)) score += key.length > 4 ? 2 : 1
+      if (key && hit(key)) score += key.length > 4 ? 2 : 1
     }
     if (score > bestScore) {
       bestScore = score

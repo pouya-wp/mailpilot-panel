@@ -30,16 +30,28 @@ function audioContext() {
   return ctx
 }
 
-/** Probes the engine once so we do not pay a failed request per sentence. */
-export async function probeEngine() {
-  if (serverOk !== null) return serverOk
-  try {
-    const r = await fetch(`${ENDPOINT}/health`, { method: 'GET' })
-    serverOk = r.ok ? !!(await r.json())?.ready : false
-  } catch {
-    serverOk = false
-  }
-  return serverOk
+/** Probes the engine once so we do not pay a failed request per sentence.
+ *
+ * The result is not enough to deduplicate on. This is async, so every caller
+ * that arrives before the first response still sees `serverOk === null` and
+ * fires its own request — with React's double-mount in development that was
+ * six requests to a server that is usually not there, each waiting out its
+ * own connection refusal. Hold the in-flight promise and hand that back. */
+let inFlight = null
+export function probeEngine() {
+  if (serverOk !== null) return Promise.resolve(serverOk)
+  if (inFlight) return inFlight
+  inFlight = (async () => {
+    try {
+      const r = await fetch(`${ENDPOINT}/health`, { method: 'GET' })
+      serverOk = r.ok ? !!(await r.json())?.ready : false
+    } catch {
+      serverOk = false
+    }
+    inFlight = null
+    return serverOk
+  })()
+  return inFlight
 }
 
 export function stopSpeaking() {
