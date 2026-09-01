@@ -21,7 +21,7 @@ import { useRef } from 'react'
 import { SplitText, gsap, reduced, useGSAP } from '../anim/core'
 import { useI18n } from '../i18n'
 
-export default function PageHeader({ title, sub, actions, children }) {
+export default function PageHeader({ title, sub, actions, children, embedded }) {
   const box = useRef(null)
   const { lang, rtl } = useI18n()
 
@@ -53,6 +53,17 @@ export default function PageHeader({ title, sub, actions, children }) {
     },
     { dependencies: [title, rtl], scope: box }
   )
+
+  /* Embedded in a settings tab, the tab label is already the title, so only
+     the actions belong here. They used to be dropped along with the header,
+     which left every one of these pages with no way to do its one job. */
+  if (embedded) {
+    return actions ? (
+      <div className="phead phead--bare">
+        <div className="phead__actions">{actions}</div>
+      </div>
+    ) : null
+  }
 
   return (
     <div className="phead" ref={box}>

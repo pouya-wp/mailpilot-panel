@@ -500,7 +500,7 @@ function CampaignDrawer({ campaign, onClose, onToast }) {
               <Funnel
                 format={(v) => compact(v)}
                 stages={[
-                  { key: 's', label: t('m.sent'), value: c.sent || 1, color: 'linear-gradient(90deg,#3f6ca9,#cfe1f2)' },
+                  { key: 's', label: t('m.sent'), value: c.sent, color: 'linear-gradient(90deg,#3f6ca9,#cfe1f2)' },
                   { key: 'd', label: t('m.delivered'), value: c.delivered, color: 'linear-gradient(90deg,#3f7a8f,#a8dfe0)' },
                   { key: 'o', label: t('m.opens'), value: c.opens, color: 'linear-gradient(90deg,#3f8f66,#8fd3a8)' },
                   { key: 'c', label: t('m.clicks'), value: c.clicks, color: 'linear-gradient(90deg,#6b4fa8,#b98cff)' },

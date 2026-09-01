@@ -30,14 +30,24 @@ import { IcCheckC, IcGlobe, IcPlus, IcRefresh, IcShield, IcWarn, IcX } from '../
 export default function Domains({ onToast, embedded }) {
   const { t, lang, nf } = useI18n()
   const query = useDomains()
-  const [addDomain] = useAddDomain()
+  const [addDomain, adding] = useAddDomain()
   const [verify] = useVerifyDomain()
   const [add, setAdd] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [dedicated, setDedicated] = useState(true)
+
+  /* Reset on close, so reopening does not present the last attempt as
+     though it had been typed again. */
+  const closeAdd = () => {
+    setAdd(false)
+    setDraft('')
+    setDedicated(true)
+  }
 
   return (
     <div className="page">
-      {!embedded && (
       <PageHeader
+        embedded={embedded}
         title={t('dom.title')}
         sub={t('dom.sub')}
         actions={
@@ -46,7 +56,6 @@ export default function Domains({ onToast, embedded }) {
           </Button>
         }
       />
-      )}
 
       <Stagger className="stack-v">
         {(query.data || []).length === 0 && !query.loading && (
@@ -143,20 +152,30 @@ export default function Domains({ onToast, embedded }) {
 
       <Modal
         open={add}
-        onClose={() => setAdd(false)}
+        onClose={closeAdd}
         width={52}
         title={t('dom.add')}
         sub={t('dom.sub')}
         footer={
           <>
-            <Button variant="quiet" onClick={() => setAdd(false)}>
+            <Button variant="quiet" onClick={closeAdd}>
               {t('g.cancel')}
             </Button>
             <Button
               variant="primary"
-              onClick={() => {
-                setAdd(false)
-                onToast?.(t('toast.saved'))
+              loading={adding}
+              disabled={!draft.trim()}
+              onClick={async () => {
+                try {
+                  await addDomain({ domain: draft.trim(), dedicated })
+                  closeAdd()
+                  onToast?.(t('toast.saved'))
+                } catch (err) {
+                  /* The server's own sentence: it distinguishes "that does not
+                     look like a domain name" from "already added", and both
+                     are things the reader can act on. */
+                  onToast?.(err.message || t('err.failed'))
+                }
               }}
             >
               {t('g.create')}
@@ -166,9 +185,22 @@ export default function Domains({ onToast, embedded }) {
       >
         <div className="stack-v">
           <Field label={t('dom.title')} required hint="mail.example.com">
-            <Input placeholder="mail.example.com" className="mono" />
+            <Input
+              placeholder="mail.example.com"
+              className="mono"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && draft.trim() && !adding) e.currentTarget.blur()
+              }}
+            />
           </Field>
-          <Toggle checked onChange={() => {}} label={t('dom.dedicatedIp')} hint={t('del.warmup')} />
+          <Toggle
+            checked={dedicated}
+            onChange={setDedicated}
+            label={t('dom.dedicatedIp')}
+            hint={t('del.warmup')}
+          />
           <div
             style={{
               padding: '1.4rem 1.6rem',

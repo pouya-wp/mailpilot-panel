@@ -39,8 +39,8 @@ export default function Integrations({ onToast, embedded }) {
 
   return (
     <div className="page">
-      {!embedded && (
       <PageHeader
+        embedded={embedded}
         title={t('int.title')}
         sub={t('int.sub')}
         actions={
@@ -49,7 +49,6 @@ export default function Integrations({ onToast, embedded }) {
           </Badge>
         }
       />
-      )}
 
       <Stagger className="stack-v">
         <div className="toolbar" style={{ margin: 0 }}>

@@ -49,8 +49,8 @@ export default function Team({ onToast, embedded }) {
 
   return (
     <div className="page">
-      {!embedded && (
       <PageHeader
+        embedded={embedded}
         title={t('team.title')}
         sub={t('team.sub')}
         actions={
@@ -59,7 +59,6 @@ export default function Team({ onToast, embedded }) {
           </Button>
         }
       />
-      )}
 
       <Stagger className="stack-v">
         <Card pad={false} className="panel">

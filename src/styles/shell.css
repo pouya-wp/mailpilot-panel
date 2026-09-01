@@ -638,6 +638,12 @@ html[dir='rtl'] .acct {
   flex-wrap: wrap;
   margin-bottom: 2.6rem;
 }
+/* The actions on their own, inside a settings tab: pushed to the inline end
+   and tucked up, since there is no headline for them to sit beside. */
+.phead--bare {
+  justify-content: flex-end;
+  margin-bottom: 1.6rem;
+}
 .phead__text {
   min-width: 0;
 }

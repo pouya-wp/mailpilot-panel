@@ -51,8 +51,8 @@ export default function Developers({ onToast, embedded }) {
 
   return (
     <div className="page">
-      {!embedded && (
       <PageHeader
+        embedded={embedded}
         title={t('dev.title')}
         sub={t('dev.sub')}
         actions={
@@ -73,7 +73,6 @@ export default function Developers({ onToast, embedded }) {
           </>
         }
       />
-      )}
 
       <Stagger className="stack-v">
         <Tabs

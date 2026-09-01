@@ -32,7 +32,6 @@ import {
   Stagger,
   Stagger as _S,
   Textarea,
-  Toggle,
 } from '../ui'
 
 import {
@@ -96,8 +95,8 @@ export default function Knowledge({ onToast, embedded }) {
 
   return (
     <div className="page">
-      {!embedded && (
       <PageHeader
+        embedded={embedded}
         title={t('kb.title')}
         sub={t('kb.sub')}
         actions={
@@ -111,7 +110,6 @@ export default function Knowledge({ onToast, embedded }) {
           </>
         }
       />
-      )}
 
       <Stagger className="cols cols--wide-narrow">
         <div className="stack-v">
@@ -247,12 +245,6 @@ export default function Knowledge({ onToast, embedded }) {
           <Card>
             <CardHead title={t('kb.indexed')} icon={<IcBrain size={17} />} />
             <Progress value={totalChunks} max={8000} tone="blue" label={t('kb.chunks')} right={compact(totalChunks)} />
-            <div className="hr" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-              <Toggle checked onChange={() => {}} label={lang === 'fa' ? 'به‌روزرسانی خودکار منابع وب' : 'Auto-refresh web sources'} />
-              <Toggle checked onChange={() => {}} label={lang === 'fa' ? 'یادگیری از کمپین‌های گذشته' : 'Learn from past campaigns'} />
-              <Toggle checked={false} onChange={() => {}} label={lang === 'fa' ? 'استفاده از پاسخ‌های مشتریان' : 'Use customer replies'} />
-            </div>
             <Button
               variant="primary"
               full

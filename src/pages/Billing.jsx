@@ -22,6 +22,15 @@ export default function Billing({ onToast, embedded }) {
   const method = query.data?.method
   const invoices = query.data?.invoices || []
 
+  /* Read off the same limits the meters use, so the plan card and the meters
+     can never disagree about what the customer bought. A limit that is not
+     set simply does not produce a line. */
+  const features = [
+    usage.emails?.limit && t('bill.featEmails', { n: compact(usage.emails.limit) }),
+    usage.credits?.limit && t('bill.featCredits', { n: compact(usage.credits.limit) }),
+    usage.contacts?.limit && t('bill.featContacts', { n: compact(usage.contacts.limit) }),
+  ].filter(Boolean)
+
   const meters = [
     { id: 'emails', label: t('bill.emails'), tone: 'blue', fmt: compact, ...(usage.emails || {}) },
     { id: 'credits', label: t('bill.aiCredits'), tone: 'violet', fmt: compact, ...(usage.credits || {}) },
@@ -30,8 +39,8 @@ export default function Billing({ onToast, embedded }) {
 
   return (
     <div className="page">
-      {!embedded && (
       <PageHeader
+        embedded={embedded}
         title={t('bill.title')}
         sub={t('bill.sub')}
         /* There is no payment processor here, and there should not be: in this
@@ -53,7 +62,6 @@ export default function Billing({ onToast, embedded }) {
           )
         }
       />
-      )}
 
       <Stagger className="stack-v">
         <div className="cols cols--wide-narrow">
@@ -77,7 +85,7 @@ export default function Billing({ onToast, embedded }) {
                       </span>
                       {used > 60 && (
                         <Badge tone={used > 85 ? 'warn' : 'neutral'} size="sm">
-                          {lang === 'fa' ? 'رو به اتمام' : 'trending high'}
+                          {t('bill.trendingHigh')}
                         </Badge>
                       )}
                     </div>
@@ -93,14 +101,19 @@ export default function Billing({ onToast, embedded }) {
                 {t('bill.plan')}
               </div>
               <div className="plan__name">{loc(plan?.name, lang)}</div>
-              <div className="plan__price">
-                {money(plan?.price || 0)} / {t('g.month')}
-              </div>
+              {/* Only when a price is actually recorded. `money(0)` rendered a
+                  confident "$0 / month" on a plan nobody priced. */}
+              {plan?.price != null && (
+                <div className="plan__price">
+                  {money(plan.price)} / {t('g.month')}
+                </div>
+              )}
               <div style={{ marginTop: '1.8rem', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                {(lang === 'fa'
-                  ? ['۵۰۰٬۰۰۰ ایمیل در ماه', '۱۲۰٬۰۰۰ اعتبار هوش مصنوعی', 'ایجنت‌های نامحدود', 'آی‌پی اختصاصی', 'پشتیبانی اولویت‌دار']
-                  : ['500,000 emails / month', '120,000 AI credits', 'Unlimited agents', 'Dedicated IP', 'Priority support']
-                ).map((f) => (
+                {/* The limits this deployment is actually configured with.
+                    This was five hardcoded claims — including a dedicated IP
+                    and priority support that nothing here provides — shown
+                    identically to every customer on every plan. */}
+                {features.map((f) => (
                   <span key={f} className="row" style={{ gap: '0.8rem', fontSize: '1.28rem', color: 'rgba(232,240,250,.9)' }}>
                     <IcCheckC size={15} />
                     {f}
@@ -116,11 +129,21 @@ export default function Billing({ onToast, embedded }) {
                   <IcCard size={17} />
                 </span>
                 <div style={{ flex: 1 }}>
-                  <div className="strong mono" style={{ fontSize: '1.3rem' }}>
-                    •••• •••• •••• {method?.last4 || '····'}
+                  {/* Dots and an em dash read as "still loading". Say plainly
+                      that there is no card and who to talk to instead. */}
+                  <div className="strong" style={{ fontSize: '1.3rem' }}>
+                    {method ? (
+                      <span className="mono">•••• •••• •••• {method.last4}</span>
+                    ) : (
+                      t('bill.noMethod')
+                    )}
                   </div>
                   <div className="faint" style={{ fontSize: '1.15rem' }}>
-                    {method ? `${method.brand} · ${method.exp}` : '—'}
+                    {method
+                      ? `${method.brand} · ${method.exp}`
+                      : brand.name
+                        ? t('bill.noMethodSub', { name: brand.name })
+                        : t('bill.noMethodPlain')}
                   </div>
                 </div>
                 {brand.supportEmail && (

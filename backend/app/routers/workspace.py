@@ -176,14 +176,32 @@ def update_settings(payload: SettingsPatch, principal: Principal = Depends(requi
 
 # ================================================================ billing
 
+#: Display names for the plan ids this product ships with. Anything else is
+#: shown as the id itself, which is at least true.
+PLAN_NAMES = {
+    "starter": {"en": "Starter", "fa": "پایه"},
+    "growth": {"en": "Growth", "fa": "رشد"},
+    "scale": {"en": "Scale", "fa": "اسکیل"},
+}
+
 
 @router.get("/billing", dependencies=[_needs("billing")])
 def billing(_: Principal = Depends(requires("analytics.view"))) -> dict:
     w = _workspace()
     u = db.one("SELECT * FROM usage_counters WHERE id = 1")
+    plan_id = (w["plan"] or "").strip()
     return {
-        "plan": {"id": w["plan"], "name": {"en": "Scale", "fa": "اسکیل"}, "price": 890,
-                 "renews": u["renews_at"] if u else None},
+        "plan": {
+            "id": plan_id,
+            # The plan the workspace actually records, not the literal "Scale"
+            # every deployment used to be told it was on.
+            "name": PLAN_NAMES.get(plan_id, {"en": plan_id.title(), "fa": plan_id.title()}),
+            # Nothing in this product stores a price. Inventing 890 put a
+            # number a customer could act on next to a plan name, and the
+            # panel is not where this customer's billing is decided anyway.
+            "price": None,
+            "renews": u["renews_at"] if u else None,
+        },
         "usage": {
             "emails": {"used": u["emails_used"], "limit": u["emails_limit"]} if u else {},
             "credits": {"used": u["credits_used"], "limit": u["credits_limit"]} if u else {},
@@ -191,7 +209,10 @@ def billing(_: Principal = Depends(requires("analytics.view"))) -> dict:
                          "limit": u["contacts_limit"] if u else 0},
         },
         "invoices": [ser_invoice(r) for r in db.query("SELECT * FROM invoices ORDER BY created_at DESC")],
-        "method": {"brand": "Visa", "last4": "6411", "exp": "04/28"},
+        # No payment method is stored, because there is no processor here: in
+        # this product billing is settled with the agency that sold the panel.
+        # Returning a card meant every customer saw the same invented Visa.
+        "method": None,
     }
 
 
