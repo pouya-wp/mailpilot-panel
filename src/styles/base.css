@@ -1,0 +1,365 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   FLUID SCALE
+
+   Everything in these stylesheets is authored in DESIGN pixels on
+   a 1600-wide frame, where 1rem = 10 design px. The root font-size
+   is therefore the one number that scales the entire panel.
+
+   The ORIGINAL panel was a single fixed composition, so its root
+   size was bound to viewport HEIGHT as well — that is what let it
+   promise "one screen, never scrolls". An admin panel cannot make
+   that promise: a contacts table is as long as the list is. So the
+   vertical term is gone and the scale is bound to width, clamped
+   at both ends — below the floor the type stops being readable,
+   above the ceiling a 4K monitor would render a cartoon.
+
+   Scrolling now happens in ONE place, `.ash__scroll`, so the
+   sidebar and top bar stay put and only the page moves.
+   ============================================================ */
+/* The clamp is deliberately narrow. A pure `vw` scale is what the original
+   one-screen composition wanted, but on a page you scroll it means a 1440
+   laptop and a 1920 desktop disagree about what "14px body text" is by 30%,
+   which is exactly the "sizes feel arbitrary" complaint. Holding the floor at
+   9.4px keeps body copy at ~14px on every laptop, and the ceiling stops a
+   wide monitor from inflating the panel into a cartoon. */
+html {
+  font-size: clamp(9.4px, 0.58vw, 11px);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* The shell owns scrolling. Locking the body means a drawer or modal can
+     never leave a second scrollbar behind it. */
+  overflow: hidden;
+  background: var(--bg-0);
+  color: var(--tx-1);
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Persian sets at a smaller optical size than Latin at the same nominal
+   point size, and Vazirmatn's x-height is generous — a straight swap reads
+   noticeably smaller. A hair of extra size and line-height puts the two
+   languages on the same visual weight. */
+html[lang='fa'] body {
+  font-size: 1.56rem;
+  line-height: 1.75;
+}
+html[lang='fa'] {
+  --font-display: 'Vazirmatn', 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Vazirmatn', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  /* Persian has no uppercase, and letter-spacing breaks the joins between
+     letters outright, so both are neutralised wherever the Latin design
+     reached for them. */
+  --tracking-caps: 0;
+}
+html[lang='fa'] .caps,
+html[lang='fa'] [class*='__label'],
+html[lang='fa'] .badge {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  /* The UA's own `padding: 1px 6px` survived this reset for a long time. On
+     the wider buttons it was invisible, but the small round icon buttons are
+     sized in border-box rem: at 3.4rem with 6px of horizontal padding the
+     content box collapses to about two pixels, and `place-items: center` then
+     has to resolve an overflowing item — which it does by pushing it off
+     centre. That is why the chat's icons sat to the right of their buttons. */
+  padding: 0;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+::selection {
+  background: rgba(90, 130, 175, 0.4);
+}
+
+::-webkit-scrollbar {
+  width: 1rem;
+  height: 1rem;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--tint), 0.08);
+  border-radius: 9.9rem;
+  border: 0.3rem solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Below the tablet breakpoint the scale is no longer allowed to shrink with
+   the viewport: at 800px wide, 0.55vw would put body text at 6.6px. The panel
+   holds its type size and the LAYOUT gives way instead — the sidebar becomes
+   an overlay, multi-column grids collapse (see shell.css). */
+@media (max-width: 1080px) {
+  html {
+    font-size: 9.2px;
+  }
+}
+@media (max-width: 560px) {
+  html {
+    font-size: 8.6px;
+  }
+}
+
+/* ============================================================
+   THE LIGHT RIG
+   A key light off the left edge, a cold fill bottom-right and a
+   high rim light. Everything else in the UI is lit BY these —
+   surfaces carry no colour of their own.
+   ============================================================ */
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  /* how far the vignette closes in. The entrance opens it from 1.8 to 1,
+     which reads as the aperture being pulled back to reveal the panel. */
+  --vignette: 1;
+  background: radial-gradient(120rem 76rem at 16% 44%, var(--app-wash-1), transparent 62%),
+    radial-gradient(98rem 66rem at 88% 80%, var(--app-wash-2), transparent 60%),
+    radial-gradient(76rem 52rem at 50% -8%, var(--app-wash-3), transparent 65%),
+    var(--app-bg);
+}
+
+.app::after {
+  /* vignette — pushes the eye to the centre of the composition */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    calc(120% / var(--vignette)) calc(90% / var(--vignette)) at 50% 50%,
+    transparent 52%,
+    var(--vignette-c) 100%
+  );
+  z-index: -1;
+}
+
+/* Nothing is shown until the entrance has its initial states in place —
+   the webfonts have to resolve before the headline can be split, and a
+   flash of the fully assembled panel would give away the reveal. The
+   background gradient stays visible throughout, so the wait reads as the
+   lights being down rather than as a blank page. */
+.app[data-intro='pending'] .ash,
+.app[data-intro='pending'] .app__orb,
+.app[data-intro='pending'] .agent,
+.app[data-intro='pending'] .grain {
+  opacity: 0;
+}
+
+.app__orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+  /* Promoted to its own layer, which is what makes the breathing affordable:
+     a blurred layer is rasterised once and the opacity ride is applied at
+     composite time, rather than re-running the blur on every frame. */
+  will-change: transform, opacity;
+  /* The lamps stay in the light theme — they are the panel's signature — but
+     at half strength. At full opacity a bloom of this size over a pale ground
+     stops reading as light and starts reading as a stain. */
+  opacity: var(--orb-opacity, 1);
+}
+
+/* key light: sits just outside the frame and spills onto the first card */
+.app__orb--a {
+  width: 72rem;
+  height: 72rem;
+  left: -27rem;
+  top: 28%;
+  filter: blur(12rem);
+  background: radial-gradient(
+    circle,
+    rgba(214, 233, 250, 0.62) 0%,
+    rgba(150, 190, 228, 0.42) 30%,
+    rgba(96, 136, 182, 0.22) 52%,
+    transparent 72%
+  );
+}
+/* the hot core of the key light — the small bright bloom on the left edge.
+   This is the one that swells most; it is the lamp everything else is lit by. */
+.app__orb--key {
+  width: 32rem;
+  height: 32rem;
+  left: -11rem;
+  top: 40%;
+  filter: blur(6.5rem);
+  background: radial-gradient(
+    circle,
+    rgba(244, 250, 255, 0.72) 0%,
+    rgba(198, 224, 248, 0.45) 32%,
+    rgba(138, 178, 216, 0.22) 56%,
+    transparent 74%
+  );
+}
+/* cold fill from the lower right */
+.app__orb--b {
+  width: 74rem;
+  height: 74rem;
+  right: -23rem;
+  bottom: -19rem;
+  filter: blur(13rem);
+  background: radial-gradient(
+    circle,
+    rgba(132, 172, 214, 0.42) 0%,
+    rgba(84, 118, 162, 0.22) 44%,
+    transparent 70%
+  );
+}
+/* rim light above the title */
+.app__orb--c {
+  width: 60rem;
+  height: 60rem;
+  left: 38%;
+  top: -31rem;
+  filter: blur(11rem);
+  background: radial-gradient(circle, rgba(174, 204, 236, 0.36) 0%, rgba(110, 148, 190, 0.14) 46%, transparent 72%);
+}
+/* A single cool violet, low and to the left of centre. Four lamps of the same
+   hue read as one flat wash however much they move; one lamp a few degrees off
+   is what gives the wash a direction and stops the background looking printed. */
+.app__orb--d {
+  width: 52rem;
+  height: 52rem;
+  left: 18%;
+  bottom: -20rem;
+  filter: blur(12rem);
+  background: radial-gradient(circle, rgba(150, 146, 214, 0.26) 0%, rgba(104, 108, 172, 0.12) 48%, transparent 72%);
+}
+
+/* ============================================================
+   FILM GRAIN
+   A single feTurbulence tile over the whole composition. Without
+   it the wide, dark gradients band and read as "digital"; with it
+   they read as photographed light.
+   ============================================================ */
+.grain {
+  position: fixed;
+  inset: -50%;
+  z-index: 60;
+  pointer-events: none;
+  opacity: var(--grain-opacity, 0.16);
+  /* `overlay` lightens as much as it darkens, which is right over a dark
+     ground and reads as dirt over a pale one — light flips to `multiply`. */
+  mix-blend-mode: var(--grain-blend, overlay);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 220px 220px;
+  /* Static. This layer is full-screen and `mix-blend-mode: overlay`, so every
+     step of a shifting animation re-blends the entire composition against
+     everything under it. The grain's job is to break up the banding in the
+     gradients, and a still tile does that just as well as a moving one. */
+}
+
+.shell {
+  position: relative;
+  width: min(126rem, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: 3.4rem 4rem 3rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   APPEARANCE SWITCHES
+
+   Settings → Appearance writes these onto <html>. They are real
+   render switches, not preferences stored for later: the orbs and
+   the grain are the two most expensive layers in the composition,
+   so someone on a laptop fan should be able to turn them off and
+   feel it immediately.
+   ============================================================ */
+html[data-ambient='off'] .app__orb {
+  display: none;
+}
+html[data-grain='off'] .grain {
+  display: none;
+}
+/* The same escape hatch `prefers-reduced-motion` gets, exposed as a control.
+   The GSAP hooks read the media query; this covers the CSS-driven motion. */
+html[data-motion='reduced'] *,
+html[data-motion='reduced'] *::before,
+html[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* ============================================================
+   THEME SWITCH — the circular reveal.
+
+   The browser snapshots the page before and after the palette
+   changes, and `anim/themeSwitch.js` animates a growing circle on
+   the NEW snapshot so the incoming theme wipes the old one away
+   from wherever the reader clicked.
+
+   The default cross-fade has to be turned off for that to read as
+   one circle rather than as a circle over a dissolve, and the new
+   snapshot has to sit above the old one or there is nothing to
+   reveal. `mix-blend-mode: normal` matters too: the default
+   blending makes the two palettes muddy where they overlap.
+   ============================================================ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/* Every surface in this panel carries its own colour transition. Left alone
+   they would run UNDERNEATH the circle, so the old theme would also be fading
+   while the new one wipes across it — two animations disagreeing about how
+   long the change takes. For the length of the switch, the circle is the only
+   thing moving. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Asked for less motion: the palette changes, nothing sweeps. The JS path
+   checks this too — this is here for a reader who changes the setting while
+   a transition is already in flight. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}

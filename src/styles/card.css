@@ -1,0 +1,222 @@
+/* ============================================================
+   THE GLASS SURFACE, and the few original controls the new panel
+   still uses.
+
+   These rules used to live in layout.css and console.css, alongside
+   the old single-screen composition (.hero, .grid, .stats, .level,
+   .challenge, .footer, the run console). That composition is gone,
+   so those two sheets went with it — but the pieces below are the
+   panel's visual identity and are carried over VERBATIM:
+
+     .card      the lit glass face every surface is built on
+     .music     the ambience toggle, still in the top bar
+     .slider    the boost slider, now the generic Slider primitive
+     .toast     the confirmation pill
+     .num       the counter glow
+
+   Anything here that the new panel does not use has been dropped
+   rather than left to collide with the new layout.
+   ============================================================ */
+
+/* =====================  CARD BASE  ===================== */
+.card {
+  position: relative;
+  border-radius: var(--r-lg);
+  /* The lit face, over a tinted pane. The dark layer is what the blur used to
+     contribute — it separates the card from the light behind it, so the glass
+     still reads as a surface rather than as a window. */
+  background: var(--card-face);
+  /* no solid border — the edge is a gradient ring drawn in ::after */
+  /* No backdrop-filter. It was never buying anything here: what sits behind
+     these cards is a smooth dark gradient and a handful of orbs that are
+     already blurred by 7-13rem, and blurring something that low-frequency a
+     second time is a no-op. The film grain that DOES carry detail is painted
+     above the cards, so it was never in the backdrop either.
+
+     What it did cost was real. Every card had to resample the whole area
+     behind it whenever the light rig moved, and — because these cards are
+     rotated on hover — Chrome had to composite a backdrop-filtered layer
+     under a 3D transform, which is where the torn edges and seams came from.
+     The surface below carries the glass on its own. */
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(var(--tint), 0.045);
+  overflow: hidden;
+}
+.card::before {
+  /* top-left specular sheen, like the reference. Static on purpose: a
+     highlight that tracked the pointer would repaint this layer on every
+     mouse move, and the card is already being rotated by then. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  corner-shape: inherit;
+  pointer-events: none;
+  background: radial-gradient(115% 85% at 2% -4%, var(--card-sheen-1), transparent 48%),
+    radial-gradient(70% 60% at 0% 42%, var(--card-sheen-2), transparent 62%);
+}
+.card > * {
+  position: relative;
+}
+
+.card-label {
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--tx-2);
+}
+
+/* =====================  MUSIC SWITCH  ===================== */
+.music {
+  width: 3.8rem;
+  height: 3.8rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(var(--tint), 0.04);
+  border: 1px solid var(--stroke-soft);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
+}
+.music:hover {
+  background: rgba(var(--tint), 0.08);
+  border-color: var(--stroke-strong);
+}
+.music--on {
+  box-shadow: 0 0 2.2rem -0.6rem rgba(150, 195, 232, 0.7);
+}
+.music__bars {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.5rem;
+}
+.music__bars i {
+  width: 0.26rem;
+  height: 100%;
+  border-radius: 9.9rem;
+  background: var(--tx-3);
+  /* scaled about the middle, so the meter grows both ways like a level
+     meter rather than sprouting upward like a bar chart */
+  transform: scaleY(0.28);
+  transition: background 0.25s ease;
+}
+.music--on .music__bars i {
+  background: var(--blue-1);
+}
+
+/* =====================  SLIDER  =====================
+   `--p` (0..100) is the whole control's state. The fill width, the thumb
+   position and the strength of both glows are derived from it, so the drag
+   tween and the entrance drive one number instead of three properties that
+   could disagree. */
+.slider {
+  --p: 0;
+  position: relative;
+  height: 3.6rem;
+}
+.slider__ticks {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.2rem;
+  color: var(--tx-4);
+  letter-spacing: 0.01em;
+}
+.slider__ticks span {
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.slider__ticks span.is-lit {
+  color: var(--tx-2);
+  text-shadow: 0 0 1.6rem rgba(160, 200, 232, 0.7);
+}
+.slider__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.8rem;
+  height: 0.4rem;
+  border-radius: 9.9rem;
+  background: rgba(var(--tint), 0.09);
+  overflow: visible;
+}
+.slider__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--p) * 1%);
+  border-radius: 9.9rem;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.4), #9dc0dd 52%, #eef6fc);
+  /* the track burns brighter the harder the control is pushed */
+  box-shadow: 0 0 calc(1.4rem + var(--p) * 0.016rem) 0.4rem rgba(160, 200, 232, calc(0.35 + var(--p) * 0.0035));
+}
+.slider__thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--p) * 1%);
+  width: 0.4rem;
+  height: 2.2rem;
+  border-radius: 9.9rem;
+  background: #ffffff;
+  /* centred with `translate` so `transform` stays free for the grip stretch */
+  translate: -50% -50%;
+  box-shadow: 0 0 calc(1.8rem + var(--p) * 0.014rem) 0.6rem rgba(196, 224, 245, calc(0.5 + var(--p) * 0.003));
+}
+.slider__input {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.6rem;
+  width: 100%;
+  height: 2.6rem;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+/* The track is a physical object: it runs left-to-right in both directions,
+   like every level meter and volume control does. Only the tick LABELS flip,
+   and they do that on their own through the flex container. */
+html[dir='rtl'] .slider__track,
+html[dir='rtl'] .slider__input {
+  direction: ltr;
+}
+
+/* =====================  TOAST  ===================== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 3.2rem;
+  /* centred with `translate`, leaving `transform` to the enter/exit tween */
+  translate: -50% 0;
+  z-index: 180;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 1.3rem 2.2rem;
+  border-radius: var(--r-pill);
+  /* Solid rather than blurred: the toast springs in with a scale, and a
+     backdrop-filtered layer being scaled is exactly the combination that
+     tears. At 94% opacity the blur was contributing almost nothing anyway. */
+  background: linear-gradient(158deg, var(--panel-1), var(--panel-2));
+  border: 1px solid rgba(150, 185, 218, 0.32);
+  box-shadow: 0 2.4rem 6rem -2rem rgba(var(--shade), 0.95);
+  font-size: 1.4rem;
+  color: var(--tx-hi);
+}
+.toast svg {
+  color: var(--blue-1);
+}
+
+/* =====================  COUNTERS  =====================
+   Every figure rendered through anim/Num carries this. --lit is pulsed to 1
+   and eased back to 0 whenever the value changes, so a figure that just moved
+   is momentarily brighter than one that didn't — which is how you can tell, at
+   a glance, what the control you just touched actually affected. */
+.num {
+  --lit: 0;
+  text-shadow: 0 0 calc(var(--lit) * 2.6rem) rgba(186, 218, 248, calc(var(--lit) * 0.85));
+  transition: none;
+}

@@ -1,0 +1,7 @@
+mailpilot.db
+mailpilot.db-wal
+mailpilot.db-shm
+.secret
+__pycache__/
+*.pyc
+.pytest_cache/

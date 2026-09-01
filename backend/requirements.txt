@@ -1,0 +1,10 @@
+# Deliberately short. Passwords use hashlib.scrypt and JWTs use hmac, both from
+# the standard library, so there is no passlib (unmaintained, breaks against
+# modern bcrypt on 3.13) and no python-jose. The database is stdlib sqlite3.
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic[email]>=2.6
+
+# tests only
+pytest>=8.0
+httpx>=0.27

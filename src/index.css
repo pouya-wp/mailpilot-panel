@@ -1,0 +1,14 @@
+/* Load order matters: tokens define the scale, base builds the light rig,
+   card carries the glass surface everything else sits on, then the shell,
+   the primitive kit and the pages. surface.css comes LAST so its gradient
+   rings and squircle corners override the plain borders declared above it. */
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/card.css';
+@import './styles/shell.css';
+@import './styles/ui.css';
+@import './styles/charts.css';
+@import './styles/pages.css';
+@import './styles/agent.css';
+@import './styles/surface.css';
+@import './styles/agentui.css';

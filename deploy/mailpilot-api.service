@@ -1,0 +1,53 @@
+# The API, kept alive by systemd.
+#
+# Bound to 127.0.0.1 on purpose: nothing reaches uvicorn except through nginx,
+# so the app never has to be its own TLS terminator, rate limiter or static
+# file server — three jobs it would do worse.
+
+[Unit]
+Description=MailPilot API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mailpilot
+Group=mailpilot
+WorkingDirectory=/opt/mailpilot/api
+
+# The database and the auto-generated JWT secret live outside the code
+# directory, so a deploy that replaces the code cannot replace either of them.
+Environment=MAILPILOT_DB=/opt/mailpilot/data/mailpilot.db
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/opt/mailpilot/data/api.env
+
+ExecStart=/opt/mailpilot/venv/bin/uvicorn app.main:app \
+  --host 127.0.0.1 --port 8000 \
+  --proxy-headers --forwarded-allow-ips=127.0.0.1 \
+  --workers 1
+
+Restart=always
+RestartSec=3
+
+# ---- containment ----
+# The process needs to read its code and write one directory. Everything else
+# it might touch is denied, so a remote-code bug has very little to work with.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/mailpilot/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# One worker, single SQLite writer. Scaling past this means moving to
+# Postgres, not adding workers — concurrent writers on SQLite over a network
+# filesystem is the classic way to corrupt one.
+
+[Install]
+WantedBy=multi-user.target

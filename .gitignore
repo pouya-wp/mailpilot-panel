@@ -1,0 +1,22 @@
+node_modules
+dist
+.DS_Store
+*.local
+
+server/.cache/
+
+.env
+vendor/
+
+# --- the backend's own secrets and data ---
+# The JWT signing key. Committing it would let anyone who reads the repo mint
+# a valid session for any deployment that uses it.
+backend/.secret
+# The database. It holds real contacts, the OpenAI key and the Gmail refresh
+# token, none of which belong in version control.
+backend/*.db
+backend/*.db-wal
+backend/*.db-shm
+__pycache__/
+*.pyc
+.pytest_cache/

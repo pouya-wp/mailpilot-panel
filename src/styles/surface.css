@@ -1,0 +1,267 @@
+/* ============================================================
+   Surface treatment: gradient-masked borders + squircle corners
+   Loaded last so it overrides the plain borders in layout/console.
+   ============================================================ */
+
+:root {
+  /* the light "runs around the edge" ring: bright at the top-left corner,
+     dissolves through the middle, picks up again at the bottom-right */
+  --ring-w: 1px;
+  /* The edge is LIGHT running around a dark object. On paper the same idea is
+     a soft shadow line, so the ring inverts with `--tint` like every other
+     overlay — see the light block below for the two stops that cannot. */
+  --ring: linear-gradient(
+    145deg,
+    rgba(var(--tint), 0.5) 0%,
+    rgba(var(--tint), 0.17) 20%,
+    rgba(var(--tint), 0.035) 46%,
+    rgba(var(--tint), 0.06) 68%,
+    rgba(var(--tint), 0.26) 100%
+  );
+  /* softer variant for small controls */
+  --ring-soft: linear-gradient(
+    145deg,
+    rgba(var(--tint), 0.32) 0%,
+    rgba(var(--tint), 0.1) 26%,
+    rgba(var(--tint), 0.02) 54%,
+    rgba(var(--tint), 0.14) 100%
+  );
+  /* blue edge for the accent surfaces */
+  --ring-blue: linear-gradient(
+    145deg,
+    rgba(198, 219, 255, 0.9) 0%,
+    rgba(140, 178, 255, 0.35) 24%,
+    rgba(90, 130, 235, 0.12) 52%,
+    rgba(170, 200, 255, 0.55) 100%
+  );
+}
+
+/* On paper the ring is a hairline, not a highlight: at the dark theme's
+   strength it would draw a hard outline around every card. */
+html[data-theme='light'] {
+  --ring: linear-gradient(
+    145deg,
+    rgba(var(--tint), 0.2) 0%,
+    rgba(var(--tint), 0.1) 20%,
+    rgba(var(--tint), 0.05) 46%,
+    rgba(var(--tint), 0.07) 68%,
+    rgba(var(--tint), 0.13) 100%
+  );
+  --ring-soft: linear-gradient(
+    145deg,
+    rgba(var(--tint), 0.14) 0%,
+    rgba(var(--tint), 0.07) 26%,
+    rgba(var(--tint), 0.04) 54%,
+    rgba(var(--tint), 0.1) 100%
+  );
+  --ring-blue: linear-gradient(
+    145deg,
+    rgba(47, 92, 153, 0.45) 0%,
+    rgba(47, 92, 153, 0.2) 24%,
+    rgba(47, 92, 153, 0.1) 52%,
+    rgba(47, 92, 153, 0.3) 100%
+  );
+}
+
+/* --- the ring itself: a padding-box/border-box mask difference --- */
+.card::after,
+.challenge::after,
+.chip::after,
+.selector__btn::after,
+.selector__menu::after,
+.account::after,
+.info-toggle::after,
+.forecast::after,
+.cta::after,
+.seam__btn::after,
+.footer__fab::after,
+.badge-24h::after,
+.chip__icon::after,
+/* --- admin shell surfaces opt into the same edge --- */
+.btn--primary::after,
+.iconbtn::after,
+.acct::after,
+.seg::after,
+.tbar__search::after,
+.credits::after,
+.modal__panel::after,
+.cmdk__panel::after,
+.ucard__headIcon::after,
+.empty__icon::after,
+.kpi--accent::after,
+.tile::after,
+.flowstep::after,
+.uavatar--ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  corner-shape: inherit;
+  padding: var(--ring-w);
+  background: var(--ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* Elements that need `position` for the ring to anchor to.
+   NOT .selector__menu — it is already `position: absolute`, which anchors the
+   ring just as well, and this block loads after console.css so listing it here
+   overrode that and dropped the menu back into the flow. It went unnoticed
+   while the menu was only mounted when open; now that it is always in the DOM
+   it inflated the card by its own height. */
+.chip,
+.selector__btn,
+.account,
+.info-toggle,
+.cta,
+.seam__btn,
+.footer__fab,
+.badge-24h,
+.chip__icon,
+.iconbtn,
+.acct,
+.seg,
+.tbar__search,
+.credits,
+.ucard__headIcon,
+.empty__icon,
+.tile,
+.flowstep,
+.uavatar--ring {
+  position: relative;
+}
+
+/* per-surface ring flavours */
+.chip::after,
+.selector__btn::after,
+.account::after,
+.info-toggle::after,
+.badge-24h::after,
+.footer__fab::after,
+.seam__btn::after,
+.iconbtn::after,
+.acct::after,
+.seg::after,
+.tbar__search::after,
+.credits::after,
+.tile::after,
+.flowstep::after,
+.uavatar--ring::after {
+  background: var(--ring-soft);
+}
+.challenge::after,
+.forecast::after,
+.cta::after,
+.chip__icon::after,
+.btn--primary::after,
+.ucard__headIcon::after,
+.empty__icon::after,
+.kpi--accent::after {
+  background: var(--ring-blue);
+}
+
+/* The ring is drawn in ::after, and several of these elements already use
+   ::after or need pointer events through it. Keeping it strictly decorative
+   is what makes it safe to bolt onto a button. */
+.btn--primary::after,
+.iconbtn::after,
+.acct::after,
+.seg::after,
+.tbar__search::after {
+  z-index: 2;
+}
+
+/* …and drop the solid borders those elements used to carry */
+.chip,
+.chip--hot,
+.selector__btn,
+.selector__menu,
+.account,
+.info-toggle,
+.cta,
+.seam__btn,
+.footer__fab,
+.badge-24h,
+.chip__icon,
+.challenge,
+.forecast,
+.iconbtn,
+.acct,
+.seg,
+.tbar__search,
+.credits,
+.ucard__headIcon,
+.empty__icon {
+  border: none;
+}
+
+/* the challenge card clips its art, so it needs the ring on top of it */
+.challenge {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Squircle corners — native, no library.
+   Chrome 139+ ships `corner-shape`; other engines keep plain rounding.
+   Radii are scaled up because a superellipse reads tighter than an arc.
+   ============================================================ */
+@supports (corner-shape: squircle) {
+  :root {
+    --r-xl: 6.8rem;
+    --r-lg: 6rem;
+    --r-md: 3rem;
+    --r-sm: 2rem;
+  }
+
+  .card,
+  .challenge,
+  .chip,
+  .chip__icon,
+  .selector__menu,
+  .selector__item,
+  .cta,
+  .forecast,
+  .info__row,
+  .modal__panel,
+  .cmdk__panel,
+  .menu__panel,
+  .menu__item,
+  .iconbtn,
+  .input,
+  .uselect__el,
+  .ucard__headIcon,
+  .empty__icon,
+  .credits,
+  .navi,
+  .cmdk__item,
+  .tile,
+  .flowstep,
+  .kpi {
+    corner-shape: squircle;
+  }
+
+  /* pills and round tokens stay true capsules/circles */
+  .account,
+  .badge-24h,
+  .info-toggle,
+  .selector__btn,
+  .acct,
+  .seg,
+  .seg__pill,
+  .seg__btn,
+  .btn,
+  .tbar__search,
+  .badge {
+    corner-shape: superellipse(2.2);
+  }
+
+  .ach__nav button {
+    corner-shape: squircle;
+    border-radius: 1.1rem;
+  }
+}

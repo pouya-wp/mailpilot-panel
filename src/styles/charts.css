@@ -1,0 +1,498 @@
+/* ============================================================
+   CHARTS — visual half of src/ui/charts.jsx
+
+   The stroke widths here are all `vector-effect: non-scaling-stroke`
+   on the JSX side, because the SVGs are stretched with
+   `preserveAspectRatio="none"`. Without it a chart in a wide card
+   would draw a 2px line as 6px horizontally and 1px vertically,
+   which is exactly the artefact that makes hand-rolled SVG charts
+   look hand-rolled.
+   ============================================================ */
+
+.ch {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+/* The plot rectangle. Everything positioned in per-cent of the viewBox — the
+   hover markers and the read-out — is a child of THIS, not of `.ch`, which is
+   taller by the height of the axis and the legend. */
+.ch__plot {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.ch__svg {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: visible;
+  /* The line carries a blur filter that reaches past the plot box, and the
+     card it sits in has `overflow: hidden` — so the glow was being sliced off
+     against the card's rounded corner, leaving a hard vertical edge exactly
+     where the eye expects the chart to trail away. Fading the outermost few
+     per cent lets the series dissolve into the surface instead. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 3.5%, #000 96.5%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 3.5%, #000 96.5%, transparent 100%);
+}
+.ch__grid {
+  stroke: rgba(var(--tint), 0.07);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+}
+.ch__cursor {
+  stroke: rgba(190, 220, 245, 0.45);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+.ch__area {
+  pointer-events: none;
+}
+
+/* The hover marker. An HTML element rather than an SVG <circle>, because the
+   chart's viewBox is stretched with preserveAspectRatio="none" and any shape
+   inside it renders as a wide flat ellipse. It is positioned in per-cent of
+   the plot area, so it tracks the sample at any container size. */
+.ch__marker {
+  position: absolute;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg-0), 0 0 1.4rem currentColor;
+}
+
+/* ---- hover read-out ----
+   Positioned with `inset-inline-start` so it tracks the sample under RTL
+   too; `--side` flips it to the other side of the cursor near the end of
+   the series so it can never leave the card. */
+.ch__tip {
+  position: absolute;
+  top: 0.4rem;
+  /* the chart itself is always physically left-to-right, so its read-out is
+     positioned physically too — and its own text still follows the UI's
+     direction, which `direction: inherit` on the box gives for free */
+  translate: calc(var(--side, 0) * -100% + var(--side, 0) * -1.2rem + 1.2rem) 0;
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1.2rem;
+  border-radius: var(--r-sm);
+  background: var(--panel-1);
+  border: 1px solid var(--stroke-strong);
+  box-shadow: 0 1.8rem 4rem -1.6rem rgba(var(--shade), 0.95);
+  white-space: nowrap;
+  max-width: 46%;
+  overflow: hidden;
+}
+.ch__tipLabel {
+  font-size: 1.1rem;
+  color: var(--tx-4);
+}
+.ch__tipRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.2rem;
+  color: var(--tx-2);
+}
+.ch__tipRow i {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.ch__tipRow b {
+  margin-inline-start: auto;
+  padding-inline-start: 1.2rem;
+  color: var(--tx-hi);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The tick count is decided in JS (see axisTicks) rather than by hiding
+   overflow here — a hidden label still occupies its track in flex, which is
+   what pushed the page sideways on narrow screens. */
+.ch__axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1.05rem;
+  color: var(--tx-4);
+}
+.ch__axis span {
+  transition: color 0.2s ease;
+  white-space: nowrap;
+  min-width: 0;
+}
+.ch__axis span.is-on {
+  color: var(--blue-2);
+}
+
+.ch__legend {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  font-size: 1.18rem;
+  color: var(--tx-3);
+}
+.ch__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.ch__legend i {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 0.3rem;
+}
+
+/* =====================  SPARKLINE  ===================== */
+.spark {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+/* =====================  BAR LIST  ===================== */
+.barl {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.barl__row {
+  min-width: 0;
+}
+.barl__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.2rem;
+  margin-bottom: 0.6rem;
+}
+.barl__label {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  font-size: 1.3rem;
+  color: var(--tx-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.barl__ico {
+  font-style: normal;
+  display: grid;
+  place-items: center;
+}
+.barl__value {
+  flex: 0 0 auto;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--tx-hi);
+  font-variant-numeric: tabular-nums;
+}
+.barl__track {
+  height: 0.65rem;
+  border-radius: 9.9rem;
+  background: rgba(var(--tint), 0.06);
+  overflow: hidden;
+}
+.barl__fill {
+  display: block;
+  height: 100%;
+  border-radius: 9.9rem;
+  transform-origin: left center;
+}
+html[dir='rtl'] .barl__fill {
+  transform-origin: right center;
+}
+.barl__fill--blue {
+  background: linear-gradient(90deg, rgba(120, 165, 210, 0.5), #cfe1f2);
+  box-shadow: 0 0 1.4rem rgba(160, 200, 232, 0.55);
+}
+.barl__fill--good {
+  background: linear-gradient(90deg, rgba(127, 199, 155, 0.45), var(--good));
+}
+.barl__fill--warn {
+  background: linear-gradient(90deg, rgba(224, 180, 115, 0.45), var(--warn));
+}
+.barl__fill--bad {
+  background: linear-gradient(90deg, rgba(224, 139, 139, 0.45), var(--bad));
+}
+.barl__fill--violet {
+  background: linear-gradient(90deg, rgba(169, 159, 224, 0.45), var(--violet));
+}
+
+/* =====================  DONUT  ===================== */
+.donut {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+.donut svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.donut__track {
+  fill: none;
+  stroke: rgba(var(--tint), 0.055);
+}
+.donut__arc {
+  fill: none;
+  transition: opacity 0.2s ease;
+  /* No filter. The segments are several different hues by design, so one blue
+     halo laid across all of them muddied every segment that was not blue —
+     no glow reads cleaner than a mismatched one. */
+  filter: none;
+}
+.donut__center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* clamped to the hole, for the same reason as the gauge: an unconstrained
+     centre label grows straight out over the arc */
+  width: 58%;
+  text-align: center;
+  pointer-events: none;
+}
+.donut__value {
+  font-family: var(--font-display);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: var(--tx-hi);
+  letter-spacing: -0.02em;
+}
+.donut__sub {
+  font-size: 1.02rem;
+  line-height: 1.35;
+  color: var(--tx-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* =====================  FUNNEL  ===================== */
+.fun {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.fun__row {
+  position: relative;
+  min-width: 0;
+}
+.fun__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.2rem;
+  margin-bottom: 0.55rem;
+}
+.fun__label {
+  font-size: 1.3rem;
+  color: var(--tx-2);
+}
+.fun__value {
+  font-size: 1.32rem;
+  font-weight: 600;
+  color: var(--tx-hi);
+  font-variant-numeric: tabular-nums;
+}
+.fun__barbox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 2.6rem;
+}
+.fun__bar {
+  height: 100%;
+  border-radius: 0.9rem;
+  box-shadow: inset 0 1px 0 rgba(var(--tint), 0.18), 0 0 2rem -0.6rem currentColor;
+  min-width: 0.6rem;
+}
+.fun__pct {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--tx-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* In the flow, not absolutely positioned. It used to be pinned to the top
+   inline-end of the row — which is exactly where `.fun__value` already is, so
+   the two printed over each other on every stage but the first. */
+.fun__drop {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--bad);
+  opacity: 0.9;
+  direction: ltr;
+  white-space: nowrap;
+}
+
+/* =====================  HEATMAP  ===================== */
+.heat {
+  min-width: 0;
+}
+.heat__grid {
+  display: grid;
+  gap: 0.32rem;
+  align-items: center;
+}
+.heat__col,
+.heat__row {
+  font-size: 1.02rem;
+  color: var(--tx-4);
+  text-align: center;
+  white-space: nowrap;
+}
+.heat__row {
+  text-align: end;
+  padding-inline-end: 0.7rem;
+}
+.heat__cell {
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 0.45rem;
+  /* one channel — alpha — carries the value. Hue would imply categories. */
+  background: rgba(150, 195, 232, calc(var(--a) * 0.92 + 0.03));
+  transition: transform 0.16s cubic-bezier(0.2, 0.9, 0.3, 1.3), box-shadow 0.16s ease;
+}
+.heat__cell:hover {
+  transform: scale(1.35);
+  box-shadow: 0 0 1.6rem rgba(190, 222, 250, 0.8);
+  z-index: 2;
+  position: relative;
+}
+.heat__cell--best {
+  box-shadow: 0 0 0 1.5px rgba(226, 240, 253, 0.95), 0 0 1.8rem rgba(190, 222, 250, 0.8);
+}
+.heat__scale {
+  margin-top: 1.2rem;
+}
+.heat__scaleBar {
+  display: block;
+  height: 0.5rem;
+  border-radius: 9.9rem;
+  background: linear-gradient(to right, rgba(150, 195, 232, 0.05), rgba(150, 195, 232, 0.95));
+}
+html[dir='rtl'] .heat__scaleBar {
+  background: linear-gradient(to left, rgba(150, 195, 232, 0.05), rgba(150, 195, 232, 0.95));
+}
+
+/* =====================  COHORT  ===================== */
+.cohort {
+  overflow-x: auto;
+}
+.cohort__grid {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 52rem;
+}
+.cohort__head,
+.cohort__label {
+  font-size: 1.1rem;
+  color: var(--tx-4);
+  display: flex;
+  align-items: center;
+}
+.cohort__head {
+  justify-content: center;
+}
+.cohort__label {
+  justify-content: flex-end;
+  padding-inline-end: 1rem;
+  white-space: nowrap;
+}
+.cohort__cell {
+  display: grid;
+  place-items: center;
+  height: 3.4rem;
+  border-radius: 0.7rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(240, 246, 252, calc(0.35 + var(--a) * 0.65));
+  background: rgba(150, 195, 232, calc(var(--a) * 0.62 + 0.025));
+}
+
+/* =====================  RADIAL  ===================== */
+.radial {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+.radial svg {
+  width: 100%;
+  aspect-ratio: 1;
+  transform: rotate(-90deg);
+}
+.radial__track {
+  fill: none;
+  stroke: rgba(var(--tint), 0.1);
+  stroke-width: 7;
+}
+.radial__ring {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  /* `currentColor` here resolved to the INHERITED text colour, not the stroke,
+     so every ring glowed pale grey. One tight pass of the ring's own colour
+     instead, via the variable the component sets — see the note on
+     `.gauge__ring` for why the wide second pass was dropped. */
+  filter: drop-shadow(0 0 0.3rem var(--glow-c, rgba(150, 195, 232, 0.4)));
+}
+/* The centre read-out is a box the size of the ring's HOLE, centred on the
+   ring — not on the component, which is taller because the caption sits
+   underneath. Sized as a fraction of the width (the ring is a square of that
+   width), so it holds at every `size` the component is given. */
+.radial__center {
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  /* A square inscribed in the hole has a side of diameter/sqrt(2). The hole
+     here is 73% of the box, so anything wider than ~51% pokes its corners
+     through the arc. 50% keeps the whole box clear. */
+  width: 50%;
+  aspect-ratio: 1;
+  margin-inline: auto;
+  margin-top: 25%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--tx-hi);
+  pointer-events: none;
+}
+
+.radial__label {
+  font-size: 1.15rem;
+  color: var(--tx-3);
+  text-align: center;
+}

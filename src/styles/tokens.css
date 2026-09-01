@@ -1,0 +1,341 @@
+/* ============================================================
+   TOKENS — the whole panel's colour and scale vocabulary.
+
+   All lengths are DESIGN pixels where 1rem = 10 design px; the
+   root font-size in base.css converts them.
+
+   TWO THEMES, ONE SET OF RULES
+   ---------------------------
+   The dark panel is built almost entirely out of translucent white
+   laid over a dark ground — `rgba(255,255,255,.06)` for a fill,
+   `rgba(255,255,255,.07)` for an edge, and so on. That idiom is
+   what gives every surface its "lit glass" quality, and it is also
+   what makes a light theme hard: inverting it needs a translucent
+   DARK laid over a light ground, in a hundred places.
+
+   `--tint` is the answer. It holds only the CHANNELS of whatever an
+   overlay is made of, so every one of those rules is written once
+   as `rgba(var(--tint), .06)` and simply means the right thing in
+   both themes. Switching the theme swaps three numbers.
+
+   `--shade` does the same for shadows: on dark they are black, on
+   light they are a desaturated blue-grey, because a pure black
+   shadow on a pale surface reads as dirt rather than as depth.
+   ============================================================ */
+
+:root,
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* what a translucent overlay is MADE of */
+  --tint: 255, 255, 255;
+  --shade: 0, 0, 0;
+
+  /* --- surface --- */
+  --bg-0: #0a0c10;
+  --bg-1: #0d1015;
+  --card: rgba(var(--tint), 0.035);
+  --card-2: rgba(var(--tint), 0.055);
+  --card-solid: #12161c;
+  --stroke: rgba(var(--tint), 0.07);
+  --stroke-soft: rgba(var(--tint), 0.045);
+  --stroke-strong: rgba(var(--tint), 0.12);
+
+  /* the app ground — the light rig is painted on top of this */
+  --app-bg: linear-gradient(180deg, #0b0e12 0%, #090b0f 55%, #0a0c11 100%);
+  --app-wash-1: rgba(70, 100, 140, 0.2);
+  --app-wash-2: rgba(52, 78, 112, 0.16);
+  --app-wash-3: rgba(78, 106, 145, 0.12);
+  --vignette-c: rgba(0, 0, 0, 0.6);
+
+  /* the glass face of a card: a lit layer over a tinted pane */
+  --card-face: linear-gradient(
+      158deg,
+      rgba(226, 238, 250, 0.085),
+      rgba(255, 255, 255, 0.02) 48%,
+      rgba(190, 214, 238, 0.028)
+    ),
+    linear-gradient(158deg, rgba(17, 21, 29, 0.55), rgba(11, 14, 20, 0.42));
+  --card-sheen-1: rgba(232, 243, 253, 0.13);
+  --card-sheen-2: rgba(200, 224, 246, 0.07);
+
+  /* raised opaque surfaces: menus, modals, the command palette */
+  --panel-1: #171c25;
+  --panel-2: #11151c;
+  --panel-edge: rgba(var(--tint), 0.12);
+
+  /* the navigation rail — a recess, darker than the content beside it */
+  --rail: linear-gradient(180deg, rgba(19, 24, 32, 0.94), rgba(13, 17, 23, 0.97) 55%, rgba(11, 14, 20, 0.98)),
+    radial-gradient(120% 42% at 0% 0%, rgba(150, 190, 228, 0.09), transparent 70%);
+
+  /* the top bar, which is the one genuinely blurred surface */
+  --tbar-bg: rgba(11, 14, 19, 0.72);
+
+  /* --- text ---
+     Measured on a CARD, not on the page. A card composites to about #28303b
+     in this theme — the page is #0a0c10 — so text checked against the page
+     reads a contrast it never actually has. An earlier pass lifted these
+     against the page background and under-corrected for exactly that reason:
+     `--tx-4` still sat at 3.54:1 on a card, under the 4.5 minimum, and it is
+     what the contacts table sets email addresses in.
+
+     The two dim steps had also converged to within 0.6 of a ratio point,
+     which is to say they were the same colour and the hierarchy they claim to
+     encode did not exist.
+
+     So the ramp was redrawn rather than nudged: 11.8 / 8.0 / 6.0 / 5.2 on a
+     card, every step above the 4.5 minimum and far enough apart to read as
+     different. Nudging one value inverted tx-2 and tx-3 on the first attempt,
+     which is the argument for treating a scale as a scale. */
+  --tx-1: #eef1f6;
+  --tx-2: #c3c9d2;
+  --tx-3: #a5afbc;
+  --tx-4: #98a3b2;
+  /* the brightest step, for headings and figures */
+  --tx-hi: #f4f7fc;
+  /* text that sits ON an accent surface, in both themes */
+  --tx-on-accent: #f0f6fc;
+
+  /* --- accent: desaturated, cooler, "iced" ---
+     hue pulled from 224° toward 210° and saturation cut ~40%,
+     so the light reads like cold daylight instead of neon blue */
+  --blue: #3f6ca9;
+  --blue-1: #7ba3cd;
+  --blue-2: #a6c3dd;
+  --blue-deep: #274563;
+  --ice: #cfe1f2;
+
+  /* light rig */
+  --glow: rgba(140, 180, 220, 0.45);
+  --glow-soft: rgba(150, 185, 220, 0.28);
+  --orb-opacity: 1;
+  --grain-opacity: 0.16;
+  --grain-blend: overlay;
+
+  /* --- semantic tones ---
+     Deliberately desaturated to the same degree the blue was: a saturated
+     "success green" next to this palette reads as a different product. Each
+     tone carries a text colour, a surface and an edge so a status chip is
+     three variables rather than three hand-mixed rgba()s. */
+  --good: #7fc79b;
+  --good-dim: rgba(127, 199, 155, 0.14);
+  --good-edge: rgba(127, 199, 155, 0.32);
+  --warn: #e0b473;
+  --warn-dim: rgba(224, 180, 115, 0.14);
+  --warn-edge: rgba(224, 180, 115, 0.32);
+  --bad: #e08b8b;
+  --bad-dim: rgba(224, 139, 139, 0.14);
+  --bad-edge: rgba(224, 139, 139, 0.32);
+  --info: #8fb4d6;
+  --info-dim: rgba(143, 180, 214, 0.14);
+  --info-edge: rgba(143, 180, 214, 0.32);
+  --live: #9fb8e8;
+  --live-dim: rgba(159, 184, 232, 0.14);
+  --live-edge: rgba(159, 184, 232, 0.34);
+  --violet: #a99fe0;
+  --mint: #8fd3c4;
+
+  /* chart series — read as one family under the same light */
+  --s1: #cfe1f2;
+  --s2: #8fd3a8;
+  --s3: #b98cff;
+  --s4: #e2b872;
+  --s5: #7ba3cd;
+
+  --shadow-card: 0 2.4rem 6rem -3rem rgba(var(--shade), 0.9);
+  --shadow-glow: 0 3rem 8rem -3.2rem rgba(130, 175, 215, 0.55);
+  --shadow-pop: 0 3rem 6rem -2.4rem rgba(var(--shade), 0.95), 0 0 0 1px rgba(var(--shade), 0.4);
+}
+
+/* ============================================================
+   LIGHT
+
+   Not an inversion. The dark panel is a lit object in a dark room;
+   the light one is paper under even light, so the moves that made
+   the dark theme work — heavy glows, deep vignettes, luminous
+   hairlines — are dialled right back rather than flipped. The orbs
+   stay, faintly, because they are the panel's signature; the grain
+   switches to `multiply` because `overlay` on a pale ground turns
+   into visible dirt.
+   ============================================================ */
+html[data-theme='light'] {
+  color-scheme: light;
+
+  /* overlays are now a translucent ink, not a translucent white */
+  --tint: 26, 38, 56;
+  --shade: 70, 92, 124;
+
+  --bg-0: #eff2f7;
+  --bg-1: #e7ecf3;
+  --card-solid: #ffffff;
+  --stroke: rgba(var(--tint), 0.11);
+  --stroke-soft: rgba(var(--tint), 0.075);
+  --stroke-strong: rgba(var(--tint), 0.2);
+
+  --app-bg: linear-gradient(180deg, #f2f5fa 0%, #e9eef5 55%, #eef2f8 100%);
+  --app-wash-1: rgba(120, 165, 215, 0.22);
+  --app-wash-2: rgba(140, 175, 220, 0.16);
+  --app-wash-3: rgba(150, 185, 225, 0.14);
+  --vignette-c: rgba(90, 115, 150, 0.16);
+
+  /* a card is now white paper with a cool edge, still lit from the top-left */
+  --card-face: linear-gradient(158deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.88) 48%, rgba(246, 249, 253, 0.94));
+  --card-sheen-1: rgba(255, 255, 255, 0.85);
+  --card-sheen-2: rgba(214, 232, 250, 0.25);
+
+  --panel-1: #ffffff;
+  --panel-2: #f4f7fb;
+  --panel-edge: rgba(var(--tint), 0.14);
+
+  --rail: linear-gradient(180deg, #e6ecf4 0%, #e1e8f1 55%, #dee6f0 100%),
+    radial-gradient(120% 42% at 0% 0%, rgba(150, 190, 228, 0.22), transparent 70%);
+
+  --tbar-bg: rgba(243, 246, 251, 0.78);
+
+  /* Each step is picked to CLEAR 4.5:1 on the card surface, not to look
+     pleasantly grey. The dark theme can afford airy muted text because it sits
+     on near-black; the same lightness on paper drops to 2.5:1 and stops being
+     readable — which is what the contrast audit found on every hint, table
+     header and stat label. */
+  --tx-1: #18202c;
+  --tx-2: #394456;
+  --tx-3: #545f6e;
+  --tx-4: #5c6673;
+  --tx-hi: #0e141d;
+  --tx-on-accent: #ffffff;
+
+  /* the accent darkens so it can carry text and hold contrast on white */
+  --blue: #2f5c99;
+  --blue-1: #3d6ea8;
+  --blue-2: #35618f;
+  --blue-deep: #1d3b5c;
+  --ice: #2c5580;
+
+  --glow: rgba(90, 140, 195, 0.28);
+  --glow-soft: rgba(110, 155, 205, 0.18);
+  --orb-opacity: 0.5;
+  --grain-opacity: 0.055;
+  --grain-blend: multiply;
+
+  /* tones keep their hue but drop in lightness — the dark theme's pastels
+     are unreadable as text on white */
+  --good: #29684a;
+  --good-dim: rgba(47, 125, 85, 0.1);
+  --good-edge: rgba(47, 125, 85, 0.26);
+  --warn: #7d5514;
+  --warn-dim: rgba(151, 103, 27, 0.1);
+  --warn-edge: rgba(151, 103, 27, 0.26);
+  --bad: #a33835;
+  --bad-dim: rgba(180, 65, 63, 0.1);
+  --bad-edge: rgba(180, 65, 63, 0.26);
+  --info: #305777;
+  --info-dim: rgba(56, 101, 143, 0.1);
+  --info-edge: rgba(56, 101, 143, 0.26);
+  --live: #33538a;
+  --live-dim: rgba(58, 95, 158, 0.1);
+  --live-edge: rgba(58, 95, 158, 0.28);
+  --violet: #4e4095;
+  --mint: #276e63;
+
+  /* chart series darken to stay legible against paper */
+  --s1: #3f6ca9;
+  --s2: #2f8560;
+  --s3: #6f4bb8;
+  --s4: #a1742a;
+  --s5: #5b86b5;
+
+  --shadow-card: 0 1.6rem 3.6rem -2rem rgba(var(--shade), 0.28), 0 0.2rem 0.6rem -0.3rem rgba(var(--shade), 0.12);
+  --shadow-glow: 0 2rem 5rem -2.6rem rgba(80, 130, 190, 0.45);
+  --shadow-pop: 0 2.4rem 5rem -2rem rgba(var(--shade), 0.26), 0 0 0 1px rgba(var(--tint), 0.08);
+}
+
+:root {
+  /* --- shell geometry (theme-independent) --- */
+  --side-w: 25rem;
+  --side-w-min: 7.2rem;
+  --topbar-h: 7.2rem;
+  --page-pad: 3.2rem;
+  --tracking-caps: 0.08em;
+
+  --r-xl: 5.2rem;
+  --r-lg: 4.4rem;
+  --r-md: 2.6rem;
+  --r-sm: 1.8rem;
+  --r-pill: 999px;
+
+  --font-display: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ============================================================
+   CONTROLS — the one part of the palette that could not be
+   derived from the channel tokens.
+
+   `--tint` / `--shade` invert wholesale between themes, which is
+   exactly right for translucent overlays and exactly wrong for a
+   button: a call to action is not a wash over the page, it is an
+   object with its own colour, and that colour has to stay dark
+   enough for white text in BOTH themes.
+
+   So the button faces are named here per theme instead. They are
+   tinted by `--brand`, which the deployment sets — the primary
+   button is the most visible place a white-label accent lands.
+   ============================================================ */
+
+:root,
+html[data-theme='dark'] {
+  /* the deployment overwrites this at runtime; the default keeps CSS valid
+     on its own, including before the config request lands */
+  --brand: #7ba3cd;
+
+  --btn-ghost-face: rgba(var(--tint), 0.045);
+  --btn-ghost-face-hover: rgba(var(--tint), 0.085);
+  --btn-ghost-edge: var(--stroke);
+  --btn-ghost-edge-hover: var(--stroke-strong);
+  --btn-ghost-shadow: none;
+
+  --btn-primary-text: #f2f8ff;
+  --btn-primary-face: linear-gradient(180deg, rgba(120, 155, 195, 0.2), rgba(34, 52, 76, 0.55)),
+    radial-gradient(120% 220% at 50% 150%, color-mix(in srgb, var(--brand) 55%, #d6eafa) 0%,
+      color-mix(in srgb, var(--brand) 70%, #6c98c4) 34%, transparent 68%);
+  --btn-primary-edge: color-mix(in srgb, var(--brand) 40%, rgba(165, 198, 228, 0.34));
+  --btn-primary-shadow: 0 1.6rem 4rem -1.6rem color-mix(in srgb, var(--brand) 60%, rgba(140, 185, 225, 0.85)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1.4rem 2.6rem -1.4rem rgba(200, 228, 250, 0.5);
+  --btn-primary-shadow-hover: 0 2rem 5rem -1.5rem color-mix(in srgb, var(--brand) 60%, rgba(150, 195, 235, 0.95)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1.8rem 3rem -1.4rem rgba(210, 235, 252, 0.62);
+  --btn-primary-sheen: rgba(255, 255, 255, 0.34);
+
+  /* how hard the rail's edge shadow falls on the content column */
+  --rail-shadow: rgba(var(--shade), 0.32);
+  --rail-shadow-w: 2.4rem;
+}
+
+html[data-theme='light'] {
+  /* On paper a control has to be an OBJECT, not a wash. A 4.5% ink veil over
+     a near-white page is invisible from a metre away, which is what made every
+     button here look unfinished — so the ghost button gets a real white face,
+     a real edge and a real (small) shadow. */
+  --btn-ghost-face: #ffffff;
+  --btn-ghost-face-hover: #f2f6fc;
+  --btn-ghost-edge: rgba(var(--tint), 0.16);
+  --btn-ghost-edge-hover: rgba(var(--tint), 0.3);
+  --btn-ghost-shadow: 0 0.2rem 0.5rem -0.2rem rgba(var(--shade), 0.16), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+
+  /* Deep enough that white text clears AA at both ends of the gradient
+     (measured ~6:1 at the top stop, ~11:1 at the bottom), whatever accent the
+     deployment picked — a pale brand tints it without lightening it. */
+  --btn-primary-text: #ffffff;
+  --btn-primary-face: linear-gradient(180deg, color-mix(in srgb, var(--brand) 26%, #1f4470),
+    color-mix(in srgb, var(--brand) 8%, #16304f));
+  --btn-primary-edge: color-mix(in srgb, var(--brand) 30%, #12294a);
+  --btn-primary-shadow: 0 1rem 2.2rem -0.9rem color-mix(in srgb, var(--brand) 35%, rgba(31, 68, 112, 0.75)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --btn-primary-shadow-hover: 0 1.4rem 2.8rem -0.9rem color-mix(in srgb, var(--brand) 40%, rgba(31, 68, 112, 0.85)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --btn-primary-sheen: rgba(255, 255, 255, 0.22);
+
+  /* The rail casts a SHADOW on paper, not a smear. At 0.32 of a blue-grey the
+     old value read as dirt down the edge of the page. */
+  --rail-shadow: rgba(var(--shade), 0.1);
+  --rail-shadow-w: 1.4rem;
+}
