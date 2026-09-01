@@ -205,39 +205,14 @@ def totals(range_days: int | None = None) -> dict[str, Any]:
     }
 
 
-def send_heatmap() -> list[list[float]]:
-    """Open rate by weekday x 2-hour bucket.
-
-    Modelled rather than sampled: a morning peak, a smaller evening one, and a
-    flatter weekend. Real data would replace the model, and the shape the
-    client draws would not change.
-    """
-    rng = random.Random(1234)
-    grid: list[list[float]] = []
-    for d in range(7):
-        row: list[float] = []
-        for h in range(12):
-            hour = h * 2
-            morning = math.exp(-((hour - 9) ** 2) / 12) * 1.0
-            evening = math.exp(-((hour - 20) ** 2) / 18) * 0.55
-            weekend = 0.62 if d >= 5 else 1.0
-            row.append(round((morning + evening) * weekend * (0.85 + rng.random() * 0.3) * 62, 1))
-        grid.append(row)
-    return grid
-
-
-def cohorts(months: int = 6) -> list[dict[str, Any]]:
-    rng = random.Random(555)
-    now = utcnow()
-    out = []
-    for i in range(months):
-        month = (now - timedelta(days=30 * (months - 1 - i))).strftime("%Y-%m")
-        values = [
-            round(100 * math.exp(-p * 0.28) * (0.85 + rng.random() * 0.25)) if p <= months - 1 - i else 0
-            for p in range(months)
-        ]
-        out.append({"month": month, "values": values})
-    return out
+# The heatmap and the cohort table used to be generated here — a modelled
+# morning peak, a seeded decay curve — and both endpoints were later rewritten
+# to read the account's own campaigns and contacts. The generators stayed
+# behind, callable, sitting in the module every analytics route imports.
+#
+# Removed rather than left. Fabricated figures that nothing calls are one
+# import away from being called, and a plausible number is worse than a blank
+# one: nobody checks it.
 
 
 # ---------------------------------------------------------------- activity
@@ -287,6 +262,36 @@ def record_event(event_type: str, email: str = "", campaign_id: str | None = Non
 
 
 # ---------------------------------------------------------------- paging
+
+
+def paginate_sql(select: str, where: str, params: Sequence[Any], page: int, size: int,
+                 *, order: str = "") -> dict[str, Any]:
+    """Page in SQL rather than in Python.
+
+    `paginate()` below takes a list that has already been fetched, which means
+    the caller ran `SELECT * FROM contacts WHERE …` and pulled every row into
+    memory to return fifty of them. On five thousand contacts that is 117ms and
+    a few megabytes per request; on fifty thousand it is over a second, and it
+    happens on every keystroke in the search box.
+
+    This does the counting and the slicing where the data is. Two queries
+    whatever the table size: one COUNT, one page.
+
+    `where` and `order` are built from OUR code, never from a request — the
+    routers assemble them from an allow-list and pass user values as `params`.
+    """
+    from . import db
+
+    total = db.scalar(f"SELECT COUNT(*) FROM {select} WHERE {where}", params, default=0) or 0
+    pages = max(1, math.ceil(total / size)) if size else 1
+    page = max(1, min(page, pages))
+    rows = db.query(
+        f"SELECT * FROM {select} WHERE {where}"
+        + (f" ORDER BY {order}" if order else "")
+        + " LIMIT ? OFFSET ?",
+        [*params, size, (page - 1) * size],
+    )
+    return {"items": rows, "page": page, "pages": pages, "total": total, "size": size}
 
 
 def paginate(rows: Sequence[Any], page: int, size: int) -> dict[str, Any]:

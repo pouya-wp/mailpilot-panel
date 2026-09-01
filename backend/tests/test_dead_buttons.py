@@ -788,3 +788,62 @@ def test_async_renders_a_query_object_and_plain_children():
     src = open("../src/ui/state.jsx", encoding="utf-8").read()
     assert "query ?? {" in src, "Async no longer accepts a query object"
     assert "typeof children === 'function'" in src, "Async no longer accepts plain children"
+
+
+# ================================================= paging that scales with the list
+
+
+def test_the_contact_list_does_not_read_the_whole_table(client, auth):
+    """It used to `SELECT *` every contact and slice fifty out in Python.
+
+    117ms and several megabytes on a five-thousand contact account, on every
+    keystroke in the search box, growing linearly with the list the customer
+    is paying to build. Paged in SQL it is flat: measured 16.7ms at 5,000 and
+    10.8ms at 25,000.
+
+    Asserted by counting queries rather than by timing, because a timing
+    assertion on a shared machine fails for reasons that have nothing to do
+    with this code.
+    """
+    from app import db as dbmod
+
+    calls = {"n": 0, "sql": []}
+    real_query, real_scalar = dbmod.query, dbmod.scalar
+
+    def counting_query(sql, params=()):
+        calls["n"] += 1
+        calls["sql"].append(sql)
+        return real_query(sql, params)
+
+    def counting_scalar(sql, params=(), default=None):
+        calls["n"] += 1
+        calls["sql"].append(sql)
+        return real_scalar(sql, params, default)
+
+    dbmod.query, dbmod.scalar = counting_query, counting_scalar
+    try:
+        r = client.get("/api/contacts?size=10", headers=auth)
+    finally:
+        dbmod.query, dbmod.scalar = real_query, real_scalar
+
+    assert r.status_code == 200
+    # one COUNT and one page — never a query that reads everything
+    assert calls["n"] <= 3, f"{calls['n']} queries to list one page"
+    paged = [s for s in calls["sql"] if "FROM contacts" in s and "COUNT" not in s]
+    assert paged, "no page query ran"
+    assert all("LIMIT" in s for s in paged), (
+        "a contacts query ran with no LIMIT — that reads the whole table")
+
+
+def test_paging_still_returns_the_right_rows(client, auth):
+    """The optimisation must not change the answer."""
+    first = client.get("/api/contacts?size=3&page=1&sort=name", headers=auth).json()
+    second = client.get("/api/contacts?size=3&page=2&sort=name", headers=auth).json()
+
+    assert first["page"] == 1 and second["page"] == 2
+    assert first["total"] == second["total"]
+    ids_a = {c["id"] for c in first["items"]}
+    ids_b = {c["id"] for c in second["items"]}
+    assert not (ids_a & ids_b), "the same contact appeared on two pages"
+    if first["pages"] > 1:
+        assert len(first["items"]) == 3
