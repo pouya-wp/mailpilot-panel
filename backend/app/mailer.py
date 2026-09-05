@@ -34,7 +34,7 @@ import threading
 import time
 from typing import Any
 
-from . import db, deployment, emailhtml, google
+from . import db, deployment, emailhtml, google, pacing
 from .config import settings
 from .domain import iso, log
 from .security import new_id
@@ -217,12 +217,33 @@ def _claim():
 
 
 def _drain() -> None:
-    """Send what is queued, then stop. Runs on its own thread."""
+    """Send what is queued, then stop. Runs on its own thread.
+
+    Held back by the workspace's own hourly cap and quiet hours, which were
+    editable and displayed for the whole life of the product and enforced by
+    nothing: a campaign went out in one unbroken burst at whatever hour it
+    was approved. Being asked to stop is not a failure — nothing is claimed
+    and nothing is marked failed, the loop simply returns and the next tick
+    thirty seconds later tries again, so a held campaign resumes by itself.
+    """
     failures = 0
     token = ""
     token_at = 0.0
+    said_why = ""
 
     while True:
+        allowed, why = pacing.may_send()
+        if not allowed:
+            # Said once per hold rather than every thirty seconds, which
+            # would fill the activity log with the same line all night.
+            if why != said_why:
+                log(kind="system", actor="mailer",
+                    action_en=f"holding the queue: {why}",
+                    action_fa="ارسال موقتاً نگه داشته شد", target="mailer", tone="info")
+                said_why = why
+            return
+        said_why = ""
+
         row = _claim()
         if row is None:
             return

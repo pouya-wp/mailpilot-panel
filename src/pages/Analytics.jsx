@@ -20,6 +20,7 @@ import {
   useSeries,
 } from '../api/resources'
 import { api } from '../api/client'
+import { navigate } from '../router'
 import { Async } from '../ui/state'
 import PageHeader from '../layout/PageHeader'
 import { Badge, Button, Card, CardHead, Grid, Kpi, Segmented, Select, Stagger } from '../ui'
@@ -126,6 +127,23 @@ export default function Analytics({ embedded, onToast }) {
       )}
 
       <Stagger className="stack-v">
+      {overview.data && !tot.sent && (
+        <Card>
+          <div className="row" style={{ gap: '1.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="tile__icon"><IcChart size={17} /></span>
+            <div style={{ flex: 1, minWidth: '20rem' }}>
+              <div className="strong">{t('an.noneYet')}</div>
+              <div className="faint" style={{ fontSize: '1.18rem', lineHeight: 1.7 }}>
+                {t('an.noneYetHint')}
+              </div>
+            </div>
+            <Button size="sm" variant="primary" onClick={() => navigate('campaigns')}>
+              {t('an.noneYetGo')}
+            </Button>
+          </div>
+        </Card>
+      )}
+
         <div className="kpirow" style={{ margin: 0 }}>
           <Kpi label={t('m.sent')} value={compact(tot.sent)}  icon={<IcSend size={15} />} />
           <Kpi label={t('m.openRate')} value={pct(tot.openRate, 1)}  icon={<IcEye size={15} />} />

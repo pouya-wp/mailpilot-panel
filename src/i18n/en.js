@@ -428,6 +428,9 @@ export default {
   'sup.add': 'Add address',
 
   /* ---------- analytics ---------- */
+  'an.noneYet': 'Nothing has been sent yet',
+  'an.noneYetHint': 'These figures are counted from real sends. They stay at zero until the first campaign goes out — the screen is working, there is simply nothing to report.',
+  'an.noneYetGo': 'Make a campaign',
   'an.title': 'Analytics',
   'an.sub': 'The whole program, measured',
   'an.breakdown': 'Breakdown',
@@ -1028,6 +1031,9 @@ export default {
   'res.toReview': 'To review',
   'res.accepted0': 'Accepted',
   'res.dismissed0': 'Dismissed',
+  'res.acceptedInto': '{n} added, tagged “{tag}” and put in the group “{tag}”',
+  'res.groupHint': 'Everything this search found is in here, ready to send to.',
+  'res.showGroup': 'Show the group',
   'res.accept': 'Add to contacts',
   'res.dismiss': 'Dismiss',
   'res.accepted': '{n} added to your contacts, {skip} skipped',

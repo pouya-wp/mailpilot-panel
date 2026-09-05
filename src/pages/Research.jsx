@@ -30,6 +30,7 @@ import { useI18n } from '../i18n'
 import { api } from '../api/client'
 import { invalidate, useApi } from '../api/hooks'
 import { useConfig } from '../api/config'
+import { navigate } from '../router'
 import { Async } from '../ui/state'
 import {
   Badge,
@@ -43,7 +44,7 @@ import {
   Segmented,
   Table,
 } from '../ui'
-import { IcGlobe, IcPlus, IcSearch, IcTrash, IcWarn } from '../components/NavIcons'
+import { IcGlobe, IcPlus, IcSearch, IcTeam, IcTrash, IcWarn } from '../components/NavIcons'
 
 export default function Research({ onToast }) {
   const { t, nf, lang } = useI18n()
@@ -58,6 +59,9 @@ export default function Research({ onToast }) {
   const [page, setPage] = useState(1)
   const [picked, setPicked] = useState([])
   const [working, setWorking] = useState(false)
+  /* Where the last batch landed, so the reader can walk straight to it
+     instead of going to look for thirty new rows in the contact list. */
+  const [landed, setLanded] = useState(null)
 
   const leads = useApi(`/research/leads?status=${status}&page=${page}&size=50`)
   const counts = leads.data?.counts || {}
@@ -87,12 +91,20 @@ export default function Research({ onToast }) {
     setWorking(true)
     try {
       const out = await api.post(`/research/leads/${what}`, { ids: picked })
-      onToast?.(what === 'accept'
-        ? t('res.accepted', { n: out.added, skip: out.alreadyThere + out.noAddress })
-        : t('res.dismissed', { n: out.dismissed }))
+      if (what !== 'accept') {
+        onToast?.(t('res.dismissed', { n: out.dismissed }))
+      } else if (out.group) {
+        /* Name the group they went into. "30 added" on its own leaves the
+           reader holding thirty addresses with no idea where they landed. */
+        onToast?.(t('res.acceptedInto', { n: out.added, tag: out.group }))
+        setLanded({ name: out.group, id: out.groupId })
+      } else {
+        onToast?.(t('res.accepted', { n: out.added, skip: out.alreadyThere + out.noAddress }))
+      }
       setPicked([])
       invalidate('/research/leads')
       invalidate('/contacts')
+      invalidate('/segments')
     } catch (err) {
       onToast?.(err.message)
     } finally {
@@ -160,6 +172,21 @@ export default function Research({ onToast }) {
               d: lastRun.droppedWithoutSource || 0,
             })}
           </p>
+        </Card>
+      )}
+
+      {landed && (
+        <Card>
+          <div className="row" style={{ gap: '1.2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="tile__icon"><IcTeam size={17} /></span>
+            <div style={{ flex: 1, minWidth: '18rem' }}>
+              <div className="strong">{landed.name}</div>
+              <div className="faint" style={{ fontSize: '1.18rem' }}>{t('res.groupHint')}</div>
+            </div>
+            <Button size="sm" variant="primary" onClick={() => navigate('audience?tab=groups')}>
+              {t('res.showGroup')}
+            </Button>
+          </div>
         </Card>
       )}
 
