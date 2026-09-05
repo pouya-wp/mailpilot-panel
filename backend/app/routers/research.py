@@ -33,6 +33,8 @@ class ResearchIn(Body):
     region: str = ""
     category: str = ""
     lang: str = "en"
+    #: How many to look for. 0 means "as many as the cap allows".
+    count: int = 0
 
 
 class AcceptIn(Body):
@@ -95,12 +97,18 @@ def run_research(payload: ResearchIn,
     try:
         out = brain.research_leads(
             region=region, category=category, lang=payload.lang,
+            want=payload.count,
         )
     except AIUnavailable as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     budget.record(out.get("_usage") or 0)
 
-    result = prospect.store(new_id("run"), region, category, out)
+    want = prospect.wanted(payload.count)
+    result = prospect.store(new_id("run"), region, category, out, want=want)
+    # What was asked for against what is possible, so the panel can say "you
+    # asked for 60, the ceiling is 40" instead of quietly returning fewer.
+    result["asked"] = payload.count or want
+    result["ceiling"] = prospect.MAX_PER_RUN
     log(kind="agent", actor=deployment.get()["agent_name"],
         action_en=f"researched {category} in {region} — {result['found']} found",
         action_fa=f"دربارهٔ {category} در {region} تحقیق کرد — {result['found']} مورد",

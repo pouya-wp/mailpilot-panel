@@ -778,3 +778,93 @@ def test_running_the_same_search_twice_widens_one_group(client, auth):
     made = [g for g in client.get("/api/segments", headers=auth).json()
             if g["name"]["en"] == "gold shops Dubai"]
     assert len(made) == 1
+
+
+# ============================================ approving a reply actually sends
+
+
+def test_approving_a_reply_sends_it_over_gmail(client, auth, monkeypatch):
+    """The whole point of the button, and it had no test at all.
+
+    That is how the route shipped marking threads handled, counting a
+    'replied' event and writing 'approved and sent an agent reply' into the
+    activity log without ever contacting Gmail. Nothing caught it because
+    nothing asked whether a message went out.
+
+    Gmail is faked at the transport boundary only — everything above it, the
+    threading headers, the subject, the recipient and the MIME build, is the
+    real code.
+    """
+    from app import google, mailer
+
+    _connect_a_mailbox()
+    sent: list[dict] = []
+
+    monkeypatch.setattr(mailer, "access_token", lambda: "fake-access-token")
+    monkeypatch.setattr(google, "read_message", lambda tok, mid: {
+        "id": mid, "threadId": "thread-abc",
+        "messageId": "<original@mail.example>", "references": "",
+        "from": "Ali <ali@example.com>", "subject": "A question",
+        "snippet": "", "body": "", "at": 0,
+    })
+    monkeypatch.setattr(google, "send_message",
+                        lambda tok, raw, thread_id="": sent.append({"raw": raw, "thread": thread_id})
+                        or {"id": "sent-1"})
+
+    thread = client.get("/api/inbox/t-1", headers=auth).json()
+    r = client.post("/api/inbox/t-1/reply", headers=auth,
+                    json={"send": True, "text": {"en": "Thanks, here you go.",
+                                                 "fa": "ممنون، بفرمایید."}})
+    assert r.status_code == 200, r.text
+
+    # something actually went out
+    assert len(sent) == 1, "approving a reply must reach Gmail"
+
+    import base64
+    raw = base64.urlsafe_b64decode(sent[0]["raw"]).decode("utf-8", "replace")
+    # threaded, or it arrives as a loose message with Re: on it
+    assert sent[0]["thread"] == "thread-abc"
+    assert "In-Reply-To: <original@mail.example>" in raw
+    assert "Re:" in raw
+    assert thread["email"] in raw
+    assert "Thanks, here you go." in raw
+
+    # and only now is the thread handled
+    assert client.get("/api/inbox/t-1", headers=auth).json()["handled"] is True
+
+
+def test_a_reply_that_gmail_refuses_is_not_marked_handled(client, auth, monkeypatch):
+    """A failed send must not look like a successful one.
+
+    The old route marked the thread handled and logged a send unconditionally,
+    so an operator had no way to tell a delivered reply from one that never
+    left the building.
+    """
+    from app import google, mailer
+
+    _connect_a_mailbox()
+    monkeypatch.setattr(mailer, "access_token", lambda: "fake-access-token")
+    monkeypatch.setattr(google, "read_message", lambda tok, mid: {
+        "id": mid, "threadId": "t", "messageId": "<x@y>", "references": "",
+        "from": "a@b.c", "subject": "s", "snippet": "", "body": "", "at": 0,
+    })
+
+    def refuse(tok, raw, thread_id=""):
+        raise google.GoogleError("Gmail said no")
+
+    monkeypatch.setattr(google, "send_message", refuse)
+
+    r = client.post("/api/inbox/t-2/reply", headers=auth,
+                    json={"send": True, "text": {"en": "hello", "fa": "سلام"}})
+    assert r.status_code == 502
+    assert "Gmail said no" in r.json()["detail"]
+    assert client.get("/api/inbox/t-2", headers=auth).json()["handled"] is False
+
+
+def test_an_empty_draft_is_refused_before_gmail(client, auth):
+    """Sending an empty email is worse than sending nothing."""
+    from app import db
+
+    db.execute("UPDATE threads SET draft_en = '', draft_fa = '' WHERE id = 't-4'")
+    r = client.post("/api/inbox/t-4/reply", headers=auth, json={"send": True})
+    assert r.status_code == 422

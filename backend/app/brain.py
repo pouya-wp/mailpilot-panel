@@ -206,7 +206,8 @@ def complete_json_grounded(*, system_extra: str, user: str, shape: str,
     )
 
 
-def research_leads(*, region: str, category: str, lang: str = "en") -> dict[str, Any]:
+def research_leads(*, region: str, category: str, lang: str = "en",
+                   want: int = 0) -> dict[str, Any]:
     """Go and look for organisations matching a region and a category.
 
     Always the searching endpoint, never the plain one. This is a question
@@ -221,8 +222,10 @@ def research_leads(*, region: str, category: str, lang: str = "en") -> dict[str,
     settings = deployment.ai_settings()
     return complete_json_searching(
         settings,
-        system=_ground("\n".join(prospect.rules(region, category, lang))),
-        user=f"Region: {region}\nLooking for: {category}",
+        system=_ground("\n".join(prospect.rules(region, category, lang,
+                                                prospect.wanted(want)))),
+        user=f"Region: {region}\nLooking for: {category}\n"
+             f"How many: {prospect.wanted(want)}",
         shape=prospect.SHAPE,
         # a page of leads with citations is a long document
         max_tokens=6000,

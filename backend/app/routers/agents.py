@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .. import db
 from ..deps import Principal, module_enabled, requires
-from ..domain import bi_in, iso, like, log, paginate, record_event, seeded_series
+from ..domain import MAX_BODY, bi_in, iso, like, log, paginate, record_event, seeded_series
 from ..schemas import (
     AgentIn,
     AgentPatch,
@@ -324,9 +324,15 @@ def reply(
     #    whether or not we managed to send them a courtesy reply. Making
     #    that conditional on Gmail would mean a mailbox problem quietly
     #    keeps mailing people who asked us to stop.
+    # Normalised once, here, so what is stored and what is sent are the same
+    # string. `Lang` is `dict | str`, so this also has to accept both shapes --
+    # reading `payload.text.en` off it raised AttributeError and surfaced as a
+    # bare "Internal Server Error" every time an operator edited a draft.
+    edited = bi_in(payload.text, "draft", limit=MAX_BODY) if payload.text is not None else None
+
     with db.transaction():
-        if payload.text is not None:
-            db.update("threads", thread_id, bi_in(payload.text, "draft"))
+        if edited is not None:
+            db.update("threads", thread_id, edited)
         if payload.send and row["intent"] == "unsubscribe":
             if db.one("SELECT 1 FROM suppression WHERE lower(email) = lower(?)", (row["email"],)) is None:
                 db.insert("suppression", {"id": new_id("s"), "email": row["email"],
@@ -339,7 +345,7 @@ def reply(
 
     # 2. The send itself. The text as it will actually go out: the
     #    operator's edit if they made one, otherwise the draft on the row.
-    body = (payload.text.en if payload.text is not None else row["draft_en"]) or ""
+    body = ((edited["draft_en"] if edited is not None else row["draft_en"]) or "")
     if not body.strip():
         raise HTTPException(status_code=422, detail="There is nothing written to send yet")
     try:

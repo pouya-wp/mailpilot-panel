@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS lead_runs (
 #: model asked for two hundred results starts inventing them around forty.
 MAX_PER_RUN = 40
 
+
+def wanted(asked: int) -> int:
+    """How many to actually go looking for.
+
+    The caller's number, clamped. Above MAX_PER_RUN a model stops finding and
+    starts inventing, and an invented address is a bounce against the
+    customer's own Gmail — so the ceiling is not negotiable by the UI.
+    """
+    if asked <= 0:
+        return MAX_PER_RUN
+    return max(1, min(int(asked), MAX_PER_RUN))
+
 SHAPE = """{
   "brief": "2-4 sentences on who these people are and what they care about",
   "angles": ["a specific thing worth writing to them about", "another"],
@@ -91,7 +103,7 @@ SHAPE = """{
 }"""
 
 
-def rules(region: str, category: str, lang: str) -> list[str]:
+def rules(region: str, category: str, lang: str, want: int = MAX_PER_RUN) -> list[str]:
     """What the agent is told before it goes looking."""
     return [
         f"Find organisations in {region} that match: {category}.",
@@ -108,7 +120,7 @@ def rules(region: str, category: str, lang: str) -> list[str]:
         "lead you cannot cite is a lead you made up, so drop it.",
         "Prefer a business address the organisation publishes for enquiries. Do "
         "not collect the personal address of a named individual.",
-        f"Return at most {MAX_PER_RUN} leads. Fewer real ones beats more invented ones.",
+        f"Return at most {want} leads. Fewer real ones beats more invented ones.",
         "",
         "`brief` is who these people are and what they actually care about — "
         "what a person writing to them would need to know, not a description of "
@@ -149,14 +161,15 @@ def clean_email(raw: Any, source: str) -> str:
     return address
 
 
-def store(run_id: str, region: str, category: str, payload: dict) -> dict[str, Any]:
+def store(run_id: str, region: str, category: str, payload: dict,
+          want: int = MAX_PER_RUN) -> dict[str, Any]:
     """Write a run and its leads into the review queue."""
     leads_in = payload.get("leads")
     leads_in = leads_in if isinstance(leads_in, list) else []
 
     kept: list[dict] = []
     dropped_no_source = 0
-    for item in leads_in[:MAX_PER_RUN]:
+    for item in leads_in[:want]:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or "").strip()[:160]

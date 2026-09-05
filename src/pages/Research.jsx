@@ -46,12 +46,18 @@ import {
 } from '../ui'
 import { IcGlobe, IcPlus, IcSearch, IcTeam, IcTrash, IcWarn } from '../components/NavIcons'
 
+/* Mirrors prospect.MAX_PER_RUN. Past it a search stops finding real
+   businesses and starts inventing them, and an invented address is a
+   bounce against the customer's own Gmail. */
+const FIND_CEILING = 40
+
 export default function Research({ onToast }) {
   const { t, nf, lang } = useI18n()
   const { ai } = useConfig()
 
   const [region, setRegion] = useState('')
   const [category, setCategory] = useState('')
+  const [count, setCount] = useState(20)
   const [running, setRunning] = useState(false)
   const [lastRun, setLastRun] = useState(null)
 
@@ -73,7 +79,7 @@ export default function Research({ onToast }) {
     if (!ready) return
     setRunning(true)
     try {
-      const out = await api.post('/research/run', { region, category, lang })
+      const out = await api.post('/research/run', { region, category, lang, count })
       setLastRun(out)
       setStatus('new')
       setPage(1)
@@ -134,6 +140,18 @@ export default function Research({ onToast }) {
               value={category}
               placeholder={t('res.categoryPh')}
               onChange={(e) => setCategory(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && ready && run()}
+            />
+          </Field>
+          {/* Same ceiling as the server's, which clamps regardless — this only
+              stops the reader typing a number that would be silently reduced. */}
+          <Field label={t('res.count')} hint={t('res.countHint', { max: nf(FIND_CEILING) })}>
+            <Input
+              type="number"
+              min={1}
+              max={FIND_CEILING}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(FIND_CEILING, Number(e.target.value) || 1)))}
               onKeyDown={(e) => e.key === 'Enter' && ready && run()}
             />
           </Field>

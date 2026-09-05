@@ -36,6 +36,11 @@ import { IcCheckC, IcSearch, IcSend, IcWarn } from './NavIcons'
    it — so these are offered as plain rates rather than invented units. */
 const RATES = [10, 25, 50, 100, 250]
 
+/* Mirrors prospect.MAX_PER_RUN on the server, which is the real limit --
+   this only stops the reader typing a number that will be silently
+   clamped. The server clamps regardless. */
+const FIND_CEILING = 40
+
 export default function CampaignWizard({ open, onClose, onToast }) {
   const { t, lang, nf } = useI18n()
 
@@ -45,6 +50,10 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   // step 1
   const [category, setCategory] = useState('')
   const [region, setRegion] = useState('')
+  /* How many to look for. The tester's sentence is "twenty gold shops in
+     Dubai" -- the count is half of it, and asking for it here is the
+     difference between a search and a wish. */
+  const [count, setCount] = useState(20)
 
   // step 2
   const [found, setFound] = useState(null)   // { found, withEmail }
@@ -66,7 +75,7 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   useEffect(() => {
     if (open) return
     const id = setTimeout(() => {
-      setStep(1); setCategory(''); setRegion('')
+      setStep(1); setCategory(''); setRegion(''); setCount(20)
       setFound(null); setKept(null)
       setTemplate(''); setSubject('')
       setWhen('now'); setAt(''); setRate(50)
@@ -106,7 +115,7 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   const find = async () => {
     setBusy(true)
     try {
-      const out = await api.post('/research/run', { region, category, lang })
+      const out = await api.post('/research/run', { region, category, lang, count })
       setFound(out)
       setStep(2)
     } catch (err) {
@@ -234,6 +243,11 @@ export default function CampaignWizard({ open, onClose, onToast }) {
             <Field label={t('res.region')} hint={t('res.regionHint')} required>
               <Input value={region} placeholder={t('res.regionPh')}
                      onChange={(e) => setRegion(e.target.value)} />
+            </Field>
+            <Field label={t('res.count')} hint={t('res.countHint', { max: nf(FIND_CEILING) })}>
+              <Input type="number" min={1} max={FIND_CEILING} value={count}
+                     onChange={(e) => setCount(Math.max(1, Math.min(FIND_CEILING,
+                                                                    Number(e.target.value) || 1)))} />
             </Field>
             <p className="wiz__note wiz__note--wide">
               <IcWarn size={15} />

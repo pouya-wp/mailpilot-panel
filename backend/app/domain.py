@@ -65,6 +65,11 @@ def bi(row: Any, base: str) -> dict[str, str]:
 #: broke every list it appeared in.
 MAX_NAME = 200
 
+#: What someone WROTE, as opposed to what they named something. A reply or a
+#: draft is prose and runs to paragraphs; putting it through MAX_NAME cut
+#: every reply off after two sentences, on save and on send.
+MAX_BODY = 20_000
+
 
 def bi_get(payload: dict[str, Any] | str | None, lang: str = "en", default: str = "") -> str:
     """One side of a bilingual field, whichever shape it arrived in.
@@ -80,19 +85,25 @@ def bi_get(payload: dict[str, Any] | str | None, lang: str = "en", default: str 
     return str(payload.get(lang) or payload.get("en") or payload.get("fa") or default)
 
 
-def bi_in(payload: dict[str, Any] | None, base: str, default: str = "") -> dict[str, str]:
+def bi_in(payload: dict[str, Any] | None, base: str, default: str = "",
+          limit: int = MAX_NAME) -> dict[str, str]:
     """The inverse, for writes: accepts either a plain string or {en, fa}.
 
     Every bilingual write in the product passes through here, which makes it
     the one place a length limit can be applied without being forgotten on the
     next endpoint someone adds.
+
+    `limit` because not every bilingual field is a name. The default is right
+    for a campaign name or a subject; prose — a reply, a draft — passes
+    MAX_BODY, having previously been truncated to two hundred characters by a
+    rule written for table cells.
     """
     if payload is None:
         return {f"{base}_en": default, f"{base}_fa": default}
     if isinstance(payload, str):
-        return {f"{base}_en": payload[:MAX_NAME], f"{base}_fa": payload[:MAX_NAME]}
-    en = str(payload.get("en") or payload.get("fa") or default)[:MAX_NAME]
-    fa = str(payload.get("fa") or en)[:MAX_NAME]
+        return {f"{base}_en": payload[:limit], f"{base}_fa": payload[:limit]}
+    en = str(payload.get("en") or payload.get("fa") or default)[:limit]
+    fa = str(payload.get("fa") or en)[:limit]
     return {f"{base}_en": en, f"{base}_fa": fa}
 
 
