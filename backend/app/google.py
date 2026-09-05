@@ -240,8 +240,12 @@ def build_message(*, to: str, sender: str, sender_name: str, subject: str,
     return base64.urlsafe_b64encode(msg.as_bytes()).decode()
 
 
-def send_message(access_token: str, raw: str) -> dict[str, Any]:
-    return _api("POST", f"{GMAIL}/messages/send", access_token, {"raw": raw})
+def send_message(access_token: str, raw: str, thread_id: str = "") -> dict[str, Any]:
+    """Send it. With `thread_id` Gmail files it into that conversation."""
+    payload: dict[str, Any] = {"raw": raw}
+    if thread_id:
+        payload["threadId"] = thread_id
+    return _api("POST", f"{GMAIL}/messages/send", access_token, payload)
 
 
 def _strip_tags(html: str) -> str:
@@ -285,6 +289,11 @@ def read_message(access_token: str, message_id: str) -> dict[str, Any]:
     return {
         "id": out.get("id"),
         "threadId": out.get("threadId"),
+        # The RFC Message-ID, which is NOT Gmail's own id. A reply has to
+        # quote this in In-Reply-To or it is not a reply to anything.
+        "messageId": headers.get("message-id", ""),
+        "references": headers.get("references", ""),
+        "to": headers.get("to", ""),
         "from": headers.get("from", ""),
         "subject": headers.get("subject", ""),
         "snippet": out.get("snippet", ""),

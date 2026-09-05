@@ -232,14 +232,25 @@ export default function Inbox({ onToast }) {
                     icon={<IcSend size={15} />}
                     loading={replyState.loading}
                     onClick={async () => {
-                      await reply({
-                        id: open.id,
-                        send: true,
-                        // only send an override when the reader actually edited it
-                        text: draft === null ? undefined : { en: draft, fa: draft },
-                      })
-                      setDraft(null)
-                      onToast?.(t('toast.launched'))
+                      /* The failure path is the whole point here. This used
+                         to await with no catch, so a rejected send produced
+                         no toast at all -- the button stopped spinning and
+                         nothing else happened, which reads as "it doesn't
+                         send" because that is exactly what it was. */
+                      try {
+                        await reply({
+                          id: open.id,
+                          send: true,
+                          // only send an override when the reader actually edited it
+                          text: draft === null ? undefined : { en: draft, fa: draft },
+                        })
+                        setDraft(null)
+                        onToast?.(t('inbox.sent'))
+                      } catch (err) {
+                        // the server says which of Gmail, the draft or the
+                        // connection is the problem; all three are actionable
+                        onToast?.(err.message || t('err.failed'))
+                      }
                     }}
                   >
                     {t('inbox.approve')}
@@ -269,6 +280,13 @@ export default function Inbox({ onToast }) {
                                                           { user_id: m.id }),
                                            t('inbox.assigned')),
                       })),
+                      /* With a one-person deployment -- which is most of them
+                         -- this menu was a small empty box with a divider in
+                         it, and a control that opens onto nothing reads as
+                         broken rather than as unused. */
+                      ...((team.data || []).length
+                        ? []
+                        : [{ id: 'none-yet', label: t('inbox.assignEmpty'), disabled: true }]),
                       { divider: true },
                       {
                         id: 'none',

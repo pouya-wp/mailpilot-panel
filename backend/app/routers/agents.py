@@ -255,30 +255,109 @@ def get_thread(thread_id: str, _: Principal = Depends(requires("analytics.view")
     return ser_thread(_thread(thread_id))
 
 
+def _send_reply(row, text: str) -> str:
+    """Actually reply, over the customer's own Gmail. Returns the message id.
+
+    Read the original back first: the thread row keeps Gmail's message id
+    but not the conversation it belongs to, nor the RFC Message-ID that
+    In-Reply-To has to quote. Without both, the reply arrives as a loose
+    message with "Re:" on it rather than under the conversation.
+    """
+    from html import escape as html_escape
+
+    from .. import deployment, google, mailer
+
+    token = mailer.access_token()
+    original = google.read_message(token, row["id"])
+
+    d = deployment.get()
+    subject = row["subject_en"] or ""
+    if not subject.strip().lower().startswith("re:"):
+        subject = f"Re: {subject}".strip()
+
+    headers: dict[str, str] = {}
+    if original.get("messageId"):
+        headers["In-Reply-To"] = original["messageId"]
+        # References carries the whole chain, so a long thread keeps
+        # threading in clients that do not use Gmail's threadId.
+        chain = (original.get("references") or "").strip()
+        headers["References"] = f"{chain} {original['messageId']}".strip()
+
+    # The draft is plain text written by the agent. Escaped, because a
+    # customer's name or an operator's edit can contain < or &, and one
+    # stray angle bracket otherwise eats the rest of the message.
+    body_lines = [html_escape(line) for line in text.strip().splitlines() if line.strip()]
+    html = "".join(f'<p style="margin:0 0 1em">{line}</p>' for line in body_lines) or (
+        f"<p>{html_escape(text.strip())}</p>"
+    )
+
+    raw = google.build_message(
+        to=row["email"],
+        sender=d.get("from_email") or d.get("google_email") or "",
+        sender_name=d.get("from_name") or d.get("brand_name") or "",
+        subject=subject,
+        html=html,
+        text=text.strip(),
+        reply_to=d.get("reply_to") or "",
+        headers=headers,
+    )
+    # No unsubscribe header: this is a one-to-one answer to a message the
+    # recipient sent us, not bulk mail, and offering to unsubscribe someone
+    # from a conversation they started reads as a mistake.
+    out = google.send_message(token, raw, thread_id=original.get("threadId") or "")
+    return out.get("id") or ""
+
+
 @router.post("/inbox/{thread_id}/reply", dependencies=[_needs("inbox")])
 def reply(
     thread_id: str, payload: ReplyIn, principal: Principal = Depends(requires("content.edit"))
 ) -> dict:
+    from .. import google
+
     row = _thread(thread_id)
-    data: dict = {}
-    if payload.text is not None:
-        data |= bi_in(payload.text, "draft")
-    if payload.send:
-        data["handled"] = 1
+
+    # Three phases, in this order on purpose.
+    #
+    # 1. What must survive a failed send. The operator's edit, so a Gmail
+    #    outage does not throw away what they just typed — and the opt-out,
+    #    because someone who asked to be left alone has to be left alone
+    #    whether or not we managed to send them a courtesy reply. Making
+    #    that conditional on Gmail would mean a mailbox problem quietly
+    #    keeps mailing people who asked us to stop.
     with db.transaction():
-        if data:
-            db.update("threads", thread_id, data)
-        if payload.send:
-            record_event("replied", email=row["email"])
-            log(kind="human", actor=principal.id, action_en="approved and sent an agent reply",
-                action_fa="پاسخ ایجنت را تأیید و ارسال کرد", target=thread_id, tone="good")
-            # opting out has to be honoured immediately, not at the next sync
-            if row["intent"] == "unsubscribe":
-                if db.one("SELECT 1 FROM suppression WHERE lower(email) = lower(?)", (row["email"],)) is None:
-                    db.insert("suppression", {"id": new_id("s"), "email": row["email"],
-                                              "reason": "unsub", "created_at": iso()})
-                db.execute("UPDATE contacts SET status='unsubscribed' WHERE lower(email)=lower(?)",
-                           (row["email"],))
+        if payload.text is not None:
+            db.update("threads", thread_id, bi_in(payload.text, "draft"))
+        if payload.send and row["intent"] == "unsubscribe":
+            if db.one("SELECT 1 FROM suppression WHERE lower(email) = lower(?)", (row["email"],)) is None:
+                db.insert("suppression", {"id": new_id("s"), "email": row["email"],
+                                          "reason": "unsub", "created_at": iso()})
+            db.execute("UPDATE contacts SET status='unsubscribed' WHERE lower(email)=lower(?)",
+                       (row["email"],))
+
+    if not payload.send:
+        return ser_thread(_thread(thread_id))
+
+    # 2. The send itself. The text as it will actually go out: the
+    #    operator's edit if they made one, otherwise the draft on the row.
+    body = (payload.text.en if payload.text is not None else row["draft_en"]) or ""
+    if not body.strip():
+        raise HTTPException(status_code=422, detail="There is nothing written to send yet")
+    try:
+        _send_reply(row, body)
+    except google.GoogleError as exc:
+        # Say what went wrong. This route used to mark the thread handled
+        # and write "approved and sent an agent reply" into the activity
+        # log without contacting Gmail at all, so every reply looked sent
+        # and none was.
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # 3. Only now is it true. The thread is handled, the event counted and
+    #    the log entry written, because now something was actually sent.
+    with db.transaction():
+        db.update("threads", thread_id, {"handled": 1})
+        record_event("replied", email=row["email"])
+        log(kind="human", actor=principal.id, action_en="approved and sent an agent reply",
+            action_fa="پاسخ ایجنت را تأیید و ارسال کرد", target=thread_id, tone="good")
     return ser_thread(_thread(thread_id))
 
 

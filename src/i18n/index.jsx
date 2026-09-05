@@ -16,6 +16,7 @@
    ============================================================ */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { circularThemeSwitch } from '../anim/themeSwitch'
+import { setLanguage } from '../api/client'
 import en from './en'
 import fa from './fa'
 
@@ -67,6 +68,8 @@ export function I18nProvider({ children }) {
     root.dir = dir
     root.dataset.lang = lang
     window.localStorage.setItem(LANG_KEY, lang)
+    /* so the server can answer refusals in the language on screen */
+    setLanguage(lang)
   }, [lang, dir])
 
   useEffect(() => {

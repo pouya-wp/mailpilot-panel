@@ -701,3 +701,80 @@ def test_search_wildcards_are_escaped(client, auth):
     assert body["total"] == 1
     assert body["total"] < total
     assert "%" in body["items"][0]["subject"]["en"]
+
+
+# ================================================== the email finder's groups
+
+
+def _seed_a_finder_run(email: str = "hello@zargar-dubai.example"):
+    """A finished search with one lead on it, written straight to the tables.
+
+    The search itself is an AI call over web results, which does not belong in
+    a test — what is being tested is what happens to leads once a person has
+    accepted them.
+    """
+    from app.domain import iso
+    from app.security import new_id
+
+    run_id = new_id("run")
+    lead_id = new_id("ld")
+    with db.transaction():
+        db.insert("lead_runs", {
+            "id": run_id, "region": "Dubai", "category": "gold shops",
+            "brief": "", "angles": "[]", "found": 1, "with_email": 1,
+            "created_at": iso(),
+        })
+        db.insert("leads", {
+            "id": lead_id, "name": "Zargar Dubai", "kind": "gold shop",
+            "region": "Dubai", "email": email,
+            "website": "https://zargar-dubai.example",
+            "source": "https://zargar-dubai.example/contact",
+            "note": "", "status": "new", "run_id": run_id, "created_at": iso(),
+        })
+    return lead_id
+
+
+def test_accepted_leads_are_tagged_and_grouped_by_the_search(client, auth):
+    """A batch of found addresses has to arrive selectable.
+
+    Accepting used to drop them loose into the contact list with whatever
+    tags the caller happened to pass, which in practice was none — so twenty
+    gold shops from Dubai became twenty rows indistinguishable from every
+    other contact, and there was no way to send to just them.
+    """
+    lead = _seed_a_finder_run()
+    r = client.post("/api/research/leads/accept", headers=auth, json={"ids": [lead]})
+    assert r.status_code == 200, r.text
+    out = r.json()
+
+    assert out["added"] == 1
+    assert out["tag"] == "gold shops Dubai"
+    assert out["group"] == "gold shops Dubai"
+
+    # the group exists, and its rule is the tag the contacts carry
+    groups = client.get("/api/segments", headers=auth).json()
+    made = [g for g in groups if g["name"]["en"] == "gold shops Dubai"]
+    assert len(made) == 1
+
+    # and the rule actually resolves to the contact that was just accepted --
+    # a group that exists but matches nobody would be worse than no group
+    seen = client.get(f"/api/segments/{made[0]['id']}/preview", headers=auth)
+    assert seen.status_code == 200, seen.text
+    assert any(m["email"] == "hello@zargar-dubai.example" for m in seen.json()["items"])
+
+
+def test_running_the_same_search_twice_widens_one_group(client, auth):
+    """Not two groups with the same name beside each other.
+
+    Self-contained rather than leaning on the test above: a test that only
+    passes when its neighbour ran first fails for reasons that have nothing
+    to do with the code.
+    """
+    client.post("/api/research/leads/accept", headers=auth,
+                json={"ids": [_seed_a_finder_run("first@zargar-dubai.example")]})
+    client.post("/api/research/leads/accept", headers=auth,
+                json={"ids": [_seed_a_finder_run("second@zargar-dubai.example")]})
+
+    made = [g for g in client.get("/api/segments", headers=auth).json()
+            if g["name"]["en"] == "gold shops Dubai"]
+    assert len(made) == 1

@@ -19,7 +19,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import db, mailer
+from . import db, mailer, messages
 from .config import settings
 from .routers import (
     agents,
@@ -114,6 +114,26 @@ async def request_context(request: Request, call_next):
     return response
 
 
+@app.exception_handler(HTTPException)
+async def http_error(request: Request, exc: HTTPException):
+    """Every deliberate refusal, in the language the panel is being read in.
+
+    The messages are written in English at the raise site and translated
+    here, so nothing in the routers has to know about languages. Anything
+    with no translation goes out in English, which is what happened before
+    this existed — a gap degrades, it does not break.
+
+    `exc.headers` is carried through: a 401 that loses its
+    `WWW-Authenticate` is a different response.
+    """
+    detail = messages.translate(exc.detail, request.headers.get("accept-language"))
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail, "request_id": getattr(request.state, "request_id", "")},
+        headers=getattr(exc, "headers", None),
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
     """A validation failure names the field, so the client can point at it."""
@@ -123,7 +143,8 @@ async def validation_error(request: Request, exc: RequestValidationError):
     ]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": "The request body did not validate",
+        content={"detail": messages.translate("The request body did not validate",
+                                              request.headers.get("accept-language")),
                  "problems": problems,
                  "request_id": getattr(request.state, "request_id", "")},
     )

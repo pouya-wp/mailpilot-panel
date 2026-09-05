@@ -38,6 +38,24 @@ class ResearchIn(Body):
 class AcceptIn(Body):
     ids: list[str] = []
     tags: list[str] = []
+    #: Make (or reuse) a group holding exactly what this search found.
+    #: On by default: a batch of leads with nothing to select them by is
+    #: the thing that made them hard to use.
+    group: bool = True
+
+
+def run_label(run: dict | None) -> str:
+    """What the search was, as a person would say it: "gold shops Dubai".
+
+    Built from the run rather than asked for, because the operator already
+    said both halves when they started the search and should not have to
+    invent a name for the result.
+    """
+    if not run:
+        return ""
+    category = (run["category"] or "").strip()
+    region = (run["region"] or "").strip()
+    return " ".join(part for part in (category, region) if part)[:60]
 
 
 @router.post("/run")
@@ -150,7 +168,24 @@ def accept(payload: AcceptIn,
         raise HTTPException(status_code=422, detail="No leads were chosen")
 
     tags = [t.strip() for t in payload.tags if t.strip()][:10]
+
+    # The search these leads came from, so they can be tagged with it. All
+    # the chosen ids normally share one run; if they somehow do not, the
+    # most common one names the batch.
+    marks_for_run = ", ".join("?" for _ in ids)
+    runs = [r["run_id"] for r in
+            db.query(f"SELECT run_id FROM leads WHERE id IN ({marks_for_run})", ids)
+            if r["run_id"]]
+    run = None
+    if runs:
+        top = max(set(runs), key=runs.count)
+        run = db.one("SELECT * FROM lead_runs WHERE id = ?", (top,))
+    label = run_label(run)
+    if label and label not in tags:
+        tags = (tags + [label])[:10]
+
     added, skipped, blocked, noemail = 0, 0, 0, 0
+    group_id, group_name = "", ""
 
     with db.transaction():
         marks = ", ".join("?" for _ in ids)
@@ -190,8 +225,34 @@ def accept(payload: AcceptIn,
                 action_fa=f"{added} سرنخ تحقیق‌شده به فهرست مخاطبان افزوده شد",
                 target="contacts", tone="info")
 
+        # The group, made from the tag every one of them now carries. Reused
+        # if it already exists, so running the same search twice widens the
+        # group instead of making a second one beside it.
+        if payload.group and label and (added or skipped):
+            existing = db.one(
+                "SELECT id FROM segments WHERE name_en = ? OR name_fa = ?", (label, label))
+            if existing is None:
+                group_id = new_id("seg")
+                db.insert("segments", {
+                    "id": group_id,
+                    "name_en": label, "name_fa": label,
+                    "emoji": "", "tint": "", "size": added,
+                    "growth": 0, "open_rate": 0, "live": 1,
+                    "match_mode": "all",
+                    "rules": db.dumps([{"field": "tag", "op": "has", "value": label}]),
+                    "created_at": iso(),
+                })
+                log(kind="human", actor=principal.id,
+                    action_en=f"created the group '{label}' from the email finder",
+                    action_fa=f"گروه «{label}» از ایمیل‌یاب ساخته شد",
+                    target=group_id, tone="good")
+            else:
+                group_id = existing["id"]
+            group_name = label
+
     return {"added": added, "alreadyThere": skipped,
-            "refusedAsUnsubscribed": blocked, "noAddress": noemail}
+            "refusedAsUnsubscribed": blocked, "noAddress": noemail,
+            "tag": label, "group": group_name, "groupId": group_id}
 
 
 @router.post("/leads/dismiss")

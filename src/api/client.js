@@ -112,6 +112,20 @@ async function refresh() {
   return refreshing
 }
 
+/* ---------------------------------------------------------------- language
+
+   The server writes its refusals in English and translates them on the way
+   out, which it can only do if it knows what the reader is reading. This is
+   pushed in by the i18n provider rather than read from storage here, so the
+   storage key stays in one place.
+
+   It defaults to English: an unset language is exactly the behaviour this
+   API had before, so nothing regresses while the provider is mounting. */
+let language = 'en'
+export function setLanguage(next) {
+  if (next) language = next
+}
+
 /* ---------------------------------------------------------------- request */
 
 /* How long to wait before giving up.
@@ -133,7 +147,7 @@ function budgetFor(path) {
 }
 
 async function request(method, path, { body, signal, retry = true, auth = true } = {}) {
-  const headers = { Accept: 'application/json' }
+  const headers = { Accept: 'application/json', 'Accept-Language': language }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (auth && tokens.access) headers.Authorization = `Bearer ${tokens.access}`
 
@@ -219,7 +233,10 @@ export const api = {
    */
   async download(path, fallbackName = 'export.csv') {
     const res = await fetch(BASE + path, {
-      headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {},
+      headers: {
+        'Accept-Language': language,
+        ...(tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {}),
+      },
     })
     if (!res.ok) {
       let detail = ''

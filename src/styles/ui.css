@@ -1302,6 +1302,13 @@ html[dir='rtl'] .drawer__panel {
 .menu__item--on {
   color: #fff;
 }
+/* A row that is telling you the list is empty, not offering a choice. */
+.menu__item--off,
+.menu__item--off:hover {
+  color: var(--tx-4);
+  background: none;
+  cursor: default;
+}
 .menu__divider {
   display: block;
   height: 1px;

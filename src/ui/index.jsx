@@ -977,9 +977,16 @@ export function Menu({ trigger, items, align = 'end', width }) {
           ) : (
             <button
               key={it.id ?? it.label}
-              className={cx('menu__item', it.tone && `menu__item--${it.tone}`, it.active && 'menu__item--on')}
+              className={cx('menu__item', it.tone && `menu__item--${it.tone}`, it.active && 'menu__item--on',
+                            it.disabled && 'menu__item--off')}
               tabIndex={open ? 0 : -1}
+              /* A disabled row is how a menu says "nothing here yet" without
+                 being an empty box. It must not be clickable or focusable,
+                 or it reads as an option that silently does nothing. */
+              disabled={it.disabled}
+              aria-disabled={it.disabled || undefined}
               onClick={() => {
+                if (it.disabled) return
                 it.onClick?.()
                 setOpen(false)
               }}
