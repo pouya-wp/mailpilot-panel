@@ -39,6 +39,7 @@ import {
   useSendCampaign,
 } from '../api/resources'
 import { navigate } from '../router'
+import CampaignWizard from '../components/CampaignWizard'
 import { Button, Card, Select } from '../ui'
 import { Skeleton } from '../ui/state'
 import Num from '../anim/Num'
@@ -50,6 +51,7 @@ import {
   IcList,
   IcPlus,
   IcSend,
+  IcSpark,
   IcTrash,
   IcWarn,
   IcX,
@@ -164,6 +166,7 @@ export default function Home({ onToast }) {
   const [send, sending] = useSendCampaign()
 
   const [message, setMessage] = useState('')
+  const [wizard, setWizard] = useState(false)
   /* When to send. Fetched once a draft exists so the button can name the slot
      it is offering instead of saying "optimal" and meaning nothing. */
   const [bestTime, setBestTime] = useState(null)
@@ -503,6 +506,16 @@ export default function Home({ onToast }) {
           )}
         </form>
 
+        {/* The guided run. Under the ask box rather than beside it: the box
+            is the fast path for someone who knows what they want, and this
+            is the one for someone who knows the goal but not which five
+            screens it is spread across. */}
+        <div className="home__runrow">
+          <Button variant="primary" icon={<IcSpark size={16} />} onClick={() => setWizard(true)}>
+            {t('wiz.open')}
+          </Button>
+        </div>
+
         {!answer && !busy && (
           <div className="home__starters">
             {STARTERS.map((s) => (
@@ -761,6 +774,8 @@ export default function Home({ onToast }) {
           </div>
         </div>
       )}
+
+      <CampaignWizard open={wizard} onClose={() => setWizard(false)} onToast={onToast} />
     </div>
   )
 }

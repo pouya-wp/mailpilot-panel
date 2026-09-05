@@ -230,7 +230,9 @@ class SettingsPatch(Body):
     from_email: EmailStr | None = None
     reply_to: EmailStr | None = None
     footer: str | None = None
-    throttle_per_hour: int | None = Field(default=None, ge=1000, le=5_000_000)
+    # Down to 1/hour on purpose: the whole point of the control is the
+    # slow end, and it is only meaningful now the sender obeys it.
+    throttle_per_hour: int | None = Field(default=None, ge=1, le=5_000_000)
     quiet_hours: bool | None = None
     quiet_from: str | None = None
     quiet_to: str | None = None

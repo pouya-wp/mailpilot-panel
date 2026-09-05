@@ -1559,3 +1559,82 @@ html[dir='rtl'] .drawer__panel {
     transition: none;
   }
 }
+
+/* =====================  CAMPAIGN WIZARD  =====================
+   Four steps in one dialog. The rail across the top is the only
+   thing that says where you are, so it carries the state: the
+   step you are on is lit, the ones behind it are ticked. */
+.wiz {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.wiz__rail {
+  display: flex;
+  gap: 0.8rem;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+.wiz__dot {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--stroke-soft);
+  color: var(--tx-3);
+  font-size: 1.2rem;
+  white-space: nowrap;
+}
+.wiz__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--stroke-soft);
+  font-size: 1.1rem;
+  flex: 0 0 auto;
+}
+.wiz__dot--on {
+  color: var(--tx-1);
+  border-color: var(--accent);
+}
+.wiz__dot--on .wiz__num {
+  background: var(--accent);
+  color: #0b0e13;
+}
+.wiz__dot--done {
+  color: var(--tx-2);
+}
+.wiz__dot--done .wiz__num {
+  background: var(--good-dim, rgba(120, 190, 150, 0.22));
+  color: var(--good, #8fd3a8);
+}
+/* The big count on the "what was found" step. It is the answer to the
+   question the reader just asked, so it is the largest thing there. */
+.wiz__big {
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  line-height: 1.1;
+  color: var(--tx-1);
+}
+.wiz__note {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 1.2rem 1.4rem;
+  border-radius: var(--r-md);
+  background: var(--warn-dim);
+  border: 1px solid var(--warn-edge);
+  color: var(--tx-2);
+  font-size: 1.2rem;
+  line-height: 1.7;
+}
+.wiz__note--wide {
+  grid-column: 1 / -1;
+}

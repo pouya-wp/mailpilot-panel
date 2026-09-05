@@ -976,3 +976,11 @@ html[lang='fa'] .login__title {
 .boot__text {
   font-size: 1.4rem;
 }
+
+/* The guided run, under the ask box. Centred with it, and given room above
+   so it reads as a second offer rather than part of the box. */
+.home__runrow {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.6rem;
+}
