@@ -368,6 +368,44 @@ def test_merge_tags_are_filled_per_recipient():
     assert "{{" not in out
 
 
+def test_the_call_to_action_never_points_at_the_admin_panel(monkeypatch):
+    """A recipient pressing "start a conversation" must not land on a login.
+
+    `{{cta_url}}` used to resolve to `public_base()` first, which is this
+    deployment's own admin panel — so an outreach email sent to a gold shop
+    in Dubai offered a button to a MailPilot sign-in screen. It looked fine
+    in the designer preview and was unusable to every person who got one.
+    """
+    from app import deployment
+
+    monkeypatch.setattr(mailer, "public_base", lambda: "https://panel.example.com")
+    monkeypatch.setattr(deployment, "get", lambda: {
+        "support_email": "", "reply_to": "", "from_email": "",
+        "google_email": "agent@example.com", "brand_name": "Northwind",
+    })
+
+    out = mailer._personalise("<a href='{{cta_url}}'>talk</a>",
+                              {"id": "c-9", "email": "a@b.c", "name": "Ali"}, "c-77")
+
+    assert "panel.example.com" not in out
+    assert "mailto:agent@example.com" in out
+
+
+def test_the_call_to_action_prefers_a_real_reply_address(monkeypatch):
+    """The connected Gmail is the last resort, not the first choice."""
+    from app import deployment
+
+    monkeypatch.setattr(mailer, "public_base", lambda: "https://panel.example.com")
+    monkeypatch.setattr(deployment, "get", lambda: {
+        "support_email": "hello@northwind.com", "reply_to": "",
+        "from_email": "", "google_email": "agent@example.com",
+        "brand_name": "Northwind",
+    })
+
+    out = mailer._personalise("{{cta_url}}", {"id": "c-9", "email": "a@b.c", "name": "Ali"}, "c-77")
+    assert out.startswith("mailto:hello@northwind.com")
+
+
 def test_someone_with_no_name_still_gets_a_greeting():
     out = mailer._personalise("Hi {{first_name}}", {"id": "x", "email": "a@b.c", "name": ""}, "c-1")
     assert out == "Hi there"

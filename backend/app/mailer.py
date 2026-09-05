@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import threading
 import time
+import urllib.parse
 from typing import Any
 
 from . import db, deployment, emailhtml, google, pacing
@@ -153,7 +154,8 @@ def _personalise(text: str, person: dict, campaign_id: str) -> str:
     first = (person.get("name") or "").strip().split(" ")[0]
     base = public_base()
     contact_id = person.get("id") or ""
-    support = deployment.get().get("support_email") or deployment.get().get("reply_to") or ""
+    d = deployment.get()
+    support = d.get("support_email") or d.get("reply_to") or ""
 
     if base and contact_id:
         out_link = unsub_link(base, campaign_id, contact_id)
@@ -162,12 +164,31 @@ def _personalise(text: str, person: dict, campaign_id: str) -> str:
         # better than a broken link, and it still gives the reader a way out.
         out_link = f"mailto:{support}?subject=Unsubscribe" if support else "#"
 
+    # THE CALL TO ACTION IS NOT THE PANEL. `base` is this deployment's admin
+    # panel, and it used to be the first choice here — so an outreach email
+    # whose button said "start a conversation" sent a gold shop in Dubai to a
+    # MailPilot sign-in screen. Nobody who received one could have acted on it.
+    #
+    # The button always means "reply to us", so it is a mailto, and the
+    # address is the best one we hold. The connected Gmail is last and is the
+    # reason this can always be answered: an account has to be connected for
+    # the mail to have been sent at all, so there is always somewhere for the
+    # reader to land.
+    cta_to = support or d.get("google_email") or d.get("from_email") or ""
+    subject_hint = urllib.parse.quote((d.get("brand_name") or "").strip())
+    if cta_to:
+        cta_link = f"mailto:{cta_to}"
+        if subject_hint:
+            cta_link += f"?subject=Re:%20{subject_hint}"
+    else:
+        cta_link = "#"
+
     return (
         text.replace("{{first_name}}", first or "there")
         .replace("{{name}}", person.get("name") or "")
         .replace("{{email}}", person.get("email") or "")
         .replace("{{unsubscribe}}", out_link)
-        .replace("{{cta_url}}", base or (support and f"mailto:{support}") or "#")
+        .replace("{{cta_url}}", cta_link)
     )
 
 
