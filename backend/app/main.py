@@ -27,6 +27,7 @@ from .routers import (
     analytics,
     audience,
     auth,
+    brand,
     campaigns,
     chats,
     design,
@@ -152,6 +153,7 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 API = "/api"
 app.include_router(setup.router, prefix=API)
+app.include_router(brand.router, prefix=API)
 app.include_router(auth.router, prefix=API)
 app.include_router(campaigns.router, prefix=API)
 app.include_router(audience.router, prefix=API)

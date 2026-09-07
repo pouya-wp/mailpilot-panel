@@ -367,3 +367,63 @@ __all__ = [
     "research",
     "snapshot",
 ]
+
+
+# =========================================================== the brand's site
+
+#: What a website can honestly be asked for. Everything here is something a
+#: public page either says or does not say; nothing here is a guess about
+#: what the business refuses to claim or which call to action it prefers,
+#: because a site cannot know either.
+WEBSITE_SHAPE = """{
+  "detected_business_summary": "one or two plain sentences on what this business does",
+  "detected_offers": [{"name": "", "description": ""}],
+  "detected_customer_types": ["who this is sold to"],
+  "detected_value_propositions": ["the outcome a customer gets"],
+  "detected_differentiators": ["why choose them over an alternative"],
+  "detected_proof": ["a result, case study or named client the SITE states"],
+  "suggested_brand_voice": ["professional", "direct"],
+  "analysis_confidence": 0
+}"""
+
+
+def read_website(*, url: str) -> dict[str, Any]:
+    """Read a business's own site and report what it actually says.
+
+    The searching endpoint, never the plain one — the whole value here is
+    that it reads THIS site rather than recalling what a company with a
+    similar name might do. A model answering from memory would produce a
+    confident description of a business that does not exist, and the
+    customer would then confirm it as their own brand information.
+    """
+    from . import brandprofile
+
+    _require_key()
+    settings = deployment.ai_settings()
+    rules = [
+        f"Read the public website at {url} and report what it says about the business.",
+        "Look at the homepage and, where they exist, the about, services, "
+        "products, solutions, case studies, customers, pricing and contact pages.",
+        "",
+        "== THE RULE THAT MATTERS ==",
+        "Report only what the site actually states. Leave a field empty rather "
+        "than filling it with something plausible. This is going in front of "
+        "the business owner as a description of their own company: an invented "
+        "detail is worse than a blank, because they may accept it without "
+        "reading and then send it to their customers.",
+        "",
+        "`detected_proof` is only for results, case studies or client names the "
+        "SITE ITSELF states. If the site claims nothing, return an empty list.",
+        "`suggested_brand_voice` must be chosen from exactly this list: "
+        + ", ".join(brandprofile.TONES) + ".",
+        "`analysis_confidence` is 0-100: how much of this you actually read, "
+        "as opposed to inferred. A site with one page should score low.",
+    ]
+    return complete_json_searching(
+        settings,
+        system=_ground("\n".join(rules)),
+        user=f"Website: {url}",
+        shape=WEBSITE_SHAPE,
+        max_tokens=4000,
+        token_floor=4000,
+    )

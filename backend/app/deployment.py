@@ -428,17 +428,37 @@ def agent_persona() -> str:
     customer talks to is the one their implementer described — including the
     guardrails, which are stated as rules the model must not break.
     """
+    from . import brandprofile
+
     d = get()
+    profile = brandprofile.get()
     lines = [
         f"You are {d['agent_name']}, {d['agent_role'] or 'an email marketing manager'} "
-        f"working inside {d['brand_name']}.",
-        f"Your writing tone is {d['agent_tone']}.",
+        f"working inside {profile.get('brand_name') or d['brand_name']}.",
         "You write marketing email for a real business. Be concrete and specific.",
         "Never invent statistics, prices, dates or product names that you were not given.",
         "Never write subject lines in ALL CAPS and never use more than one exclamation mark.",
     ]
-    if d["agent_brief"]:
-        lines.append(f"What this business does, in their own words: {d['agent_brief']}")
+
+    # The Brand Information profile is the source of truth. The old
+    # `agent_tone` / `agent_brief` / `agent_guardrails` fields are a FLOOR,
+    # used only where the profile has nothing to say — so a deployment that
+    # upgrades mid-morning keeps behaving the way it did that morning, and
+    # a profile that has been filled in is never contradicted by a leftover
+    # word in a field nobody can see any more.
+    described = brandprofile.as_prompt(profile)
+    if described.strip():
+        lines += ["", "What you know about this business:", described]
+    else:
+        if d["agent_tone"]:
+            lines.append(f"Your writing tone is {d['agent_tone']}.")
+        if d["agent_brief"]:
+            lines.append(f"What this business does, in their own words: {d['agent_brief']}")
+
+    # Guardrails typed into the old Agent settings still bind. They are
+    # additional to the profile's forbidden claims, never a replacement:
+    # dropping a rule someone wrote is the one failure mode that cannot be
+    # noticed from the outside.
     if d["agent_guardrails"]:
         lines.append(f"Hard rules you must never break: {d['agent_guardrails']}")
     return "\n".join(lines)

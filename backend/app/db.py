@@ -497,6 +497,8 @@ def init_db() -> None:
     from .prospect import SCHEMA as LEADS_SCHEMA
     from .routers.chats import SCHEMA as CHAT_SCHEMA
     from .routers.design import SCHEMA as ASSET_SCHEMA, migrate as migrate_templates
+    from .brandprofile import SCHEMA as BRAND_SCHEMA
+    from .brandprofile import ensure_row as ensure_brand, migrate as migrate_brand
     from .deployment import SCHEMA as DEPLOYMENT_SCHEMA, ensure_row, migrate
     conn.executescript(DEPLOYMENT_SCHEMA)
     conn.executescript(BUDGET_SCHEMA)
@@ -504,10 +506,13 @@ def init_db() -> None:
     conn.executescript(CHAT_SCHEMA)
     conn.executescript(OUTBOX_SCHEMA)
     conn.executescript(LEADS_SCHEMA)
+    conn.executescript(BRAND_SCHEMA)
     conn.commit()
     migrate()
     migrate_templates()
+    migrate_brand()
     ensure_row()
+    ensure_brand()
 
 
 def reset_db() -> None:

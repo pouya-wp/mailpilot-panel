@@ -129,6 +129,17 @@ FA: dict[str, str] = {
     "A workspace must keep at least one owner": "هر فضای کاری باید دست‌کم یک مالک داشته باشد",
     "Only an owner can promote someone to owner": "فقط مالک می‌تواند کسی را به مالک ارتقا دهد",
     "You cannot remove yourself": "خودتان را نمی‌توانید حذف کنید",
+    # ------------------------------------------------------ brand information
+    "Add a website address first": "اول نشانی وب‌سایت را وارد کنید",
+    "Nothing to apply": "چیزی برای اعمال کردن نیست",
+    "That is not a call to action this product offers":
+        "این گزینه جزو اقدام‌هایی نیست که این محصول ارائه می‌دهد",
+    "Reading your website needs web search, which is switched off for this "
+    "installation. Turn it on in Setup — without it there is nothing to read "
+    "and the answers would be invented.":
+        "خواندن وب‌سایت شما به جست‌وجوی وب نیاز دارد و این قابلیت برای این نصب "
+        "خاموش است. در بخش راه‌اندازی روشنش کنید — بدون آن چیزی برای خواندن "
+        "نیست و پاسخ‌ها ساختگی می‌شوند.",
     # ----------------------------------------------------------- deployment
     "Add the Google OAuth client id and secret first":
         "اول شناسه و کلید OAuth گوگل را وارد کنید",
