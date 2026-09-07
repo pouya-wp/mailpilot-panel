@@ -34,6 +34,7 @@ import {
   Textarea,
 } from '../ui'
 import { SaveBar, useDirty } from '../ui/SaveBar'
+import BrandInfo from './BrandInfo'
 import Knowledge from './Knowledge'
 import Domains from './Domains'
 import Integrations from './Integrations'
@@ -60,7 +61,7 @@ export default function Settings({ onToast }) {
      render made that effect fire every render. */
   const tabs = useMemo(() => [
     { value: 'agent', label: t('set.agent') },
-    { value: 'voice', label: t('set.voice') },
+    { value: 'brand', label: t('bi.tab') },
     /* Not module-gated. Every deployment has people who sign in, and the only
        other way to change a password was an SSH command on the server. */
     { value: 'account', label: t('set.account') },
@@ -103,7 +104,15 @@ export default function Settings({ onToast }) {
       <div className="tabbody">
         {tab === 'agent' && <AgentSettings onToast={onToast} />}
         {tab === 'account' && <AccountSettings onToast={onToast} />}
-        {tab === 'voice' && <Knowledge embedded onToast={onToast} />}
+        {tab === 'brand' && (
+          <>
+            <BrandInfo embedded onToast={onToast} />
+            {/* The knowledge sources and the words-to-avoid list, which lived
+                in the old tab and are not tone controls. This is also where
+                an uploaded company profile lands. */}
+            <Knowledge embedded onToast={onToast} />
+          </>
+        )}
         {tab === 'sending' && (
           <>
             <MailboxConnect onToast={onToast} />

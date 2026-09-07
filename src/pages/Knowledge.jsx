@@ -9,7 +9,6 @@
    ============================================================ */
 import { useEffect, useState } from 'react'
 import { useI18n, loc } from '../i18n'
-import { useConfig } from '../api/config'
 import { api } from '../api/client'
 import { invalidate } from '../api/hooks'
 import { useKnowledge, useUpdateVoice } from '../api/resources'
@@ -19,7 +18,6 @@ import {
   Button,
   Card,
   CardHead,
-  Divider,
   Field,
   Grid,
   IconButton,
@@ -28,10 +26,8 @@ import {
   Progress,
   Segmented,
   Select,
-  Slider,
   Stagger,
   Stagger as _S,
-  Textarea,
 } from '../ui'
 
 import {
@@ -44,52 +40,27 @@ import {
   IcPlug,
   IcPlus,
   IcRefresh,
-  IcSpark,
   IcUpload,
 } from '../components/NavIcons'
 
 const SOURCE_ICON = { web: IcGlobe, file: IcBook, app: IcPlug, internal: IcLayers }
 
-const VOICE_AXES = {
-  en: [
-    { id: 'formal', left: 'Casual', right: 'Formal', value: 38 },
-    { id: 'warm', left: 'Neutral', right: 'Warm', value: 72 },
-    { id: 'brief', left: 'Detailed', right: 'Brief', value: 64 },
-    { id: 'bold', left: 'Understated', right: 'Bold', value: 45 },
-  ],
-  fa: [
-    { id: 'formal', left: 'خودمانی', right: 'رسمی', value: 38 },
-    { id: 'warm', left: 'خنثی', right: 'صمیمی', value: 72 },
-    { id: 'brief', left: 'مفصل', right: 'کوتاه', value: 64 },
-    { id: 'bold', left: 'آرام', right: 'جسور', value: 45 },
-  ],
-}
-
 export default function Knowledge({ onToast, embedded }) {
   const { t, lang, nf, compact } = useI18n()
-  const { agent } = useConfig()
-  const voiceAxes = agent.voiceAxes !== false
   const query = useKnowledge()
   const [saveVoice] = useUpdateVoice()
   const sources = query.data?.sources || []
 
-  /* The voice sliders and the banned list are EDITED here, so they are local
-     state seeded from the server rather than read straight from the query —
-     otherwise every keystroke would be reverted by the next refetch. */
-  const [axes, setAxes] = useState(VOICE_AXES[lang] ?? VOICE_AXES.en)
+  /* The banned list is EDITED here, so it is local state seeded from the
+     server rather than read straight from the query — otherwise every
+     keystroke would be reverted by the next refetch. */
   const [banned, setBanned] = useState([])
   const [adding, setAdding] = useState(false)
+  const [word, setWord] = useState('')
 
   useEffect(() => {
-    const voice = query.data?.voice
-    if (!voice) return
-    const labels = VOICE_AXES[lang] ?? VOICE_AXES.en
-    // the server stores the values; the labels are interface strings
-    setAxes(labels.map((a) => ({ ...a, value: voice.axes?.find((x) => x.id === a.id)?.value ?? a.value })))
-    setBanned(voice.banned || [])
-  }, [query.data, lang])
-  const [word, setWord] = useState('')
-  const [voice, setVoice] = useState('')
+    if (query.data?.voice) setBanned(query.data.voice.banned || [])
+  }, [query.data])
 
   const totalChunks = query.data?.chunks ?? sources.reduce((s, k) => s + k.chunks, 0)
 
@@ -113,50 +84,6 @@ export default function Knowledge({ onToast, embedded }) {
 
       <Stagger className="cols cols--wide-narrow">
         <div className="stack-v">
-          {/* ---- voice ---- */}
-          <Card>
-            <CardHead title={t('kb.voice')} sub={t('kb.voiceSub')} icon={<IcSpark size={17} />} />
-            {/* A deployment can switch the sliders off entirely. When it has,
-                the free-text below is the whole of the voice — and the numbers
-                stop being sent to the model, not merely stop being drawn. */}
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '1.8rem' }}
-              hidden={!voiceAxes}
-            >
-              {axes.map((a) => (
-                <div key={a.id}>
-                  <div className="row" style={{ justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span className="muted" style={{ fontSize: '1.22rem' }}>
-                      {a.left}
-                    </span>
-                    <span className="muted" style={{ fontSize: '1.22rem' }}>
-                      {a.right}
-                    </span>
-                  </div>
-                  <Slider
-                    value={a.value}
-                    onChange={(v) => setAxes((xs) => xs.map((x) => (x.id === a.id ? { ...x, value: v } : x)))}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {voiceAxes && <Divider />}
-
-            <Field label={t('kb.examplesHint')}>
-              <Textarea
-                rows={4}
-                value={voice}
-                onChange={(e) => setVoice(e.target.value)}
-                placeholder={
-                  lang === 'fa'
-                    ? 'ما همیشه دوم‌شخص می‌نویسیم، از اصطلاحات فنی پرهیز می‌کنیم و هیچ‌وقت به مخاطب فشار نمی‌آوریم…'
-                    : 'We always write in second person, avoid jargon, and never pressure the reader…'
-                }
-              />
-            </Field>
-          </Card>
-
           {/* ---- sources ---- */}
           <Card>
             <CardHead
@@ -251,7 +178,7 @@ export default function Knowledge({ onToast, embedded }) {
               icon={<IcCheckC size={15} />}
               onClick={async () => {
                 try {
-                  await saveVoice({ axes: axes.map(({ id, value }) => ({ id, value })), banned, notes: voice })
+                  await saveVoice({ banned })
                   onToast?.(t('toast.saved'))
                 } catch (err) {
                   onToast?.(err.message || t('err.failed'))

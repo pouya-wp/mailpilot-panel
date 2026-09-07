@@ -1638,3 +1638,147 @@ html[dir='rtl'] .drawer__panel {
 .wiz__note--wide {
   grid-column: 1 / -1;
 }
+
+/* =====================  BRAND INFORMATION  =====================
+   One question per screen, so the question itself is the largest
+   thing on it and everything else defers to it. */
+.bi__head {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.2rem;
+}
+.bi__q {
+  margin: 2.2rem 0 0.6rem;
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--tx-1);
+}
+.bi__hint {
+  margin: 0 0 2rem;
+  font-size: 1.3rem;
+  line-height: 1.7;
+  color: var(--tx-3);
+  max-width: 62ch;
+}
+.bi__nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.2rem;
+  margin-top: 2.6rem;
+}
+/* Selectable cards: the tone and CTA questions. A wrapping row rather than a
+   grid, because the labels are of wildly different lengths in both languages
+   and a grid gives the short ones acres of dead space. */
+.bi__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+.bi__card {
+  padding: 0.95rem 1.6rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--stroke-soft);
+  background: rgba(var(--tint), 0.035);
+  color: var(--tx-2);
+  font-size: 1.28rem;
+  font-weight: 600;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.bi__card:hover {
+  color: var(--tx-hi);
+  border-color: var(--stroke-strong);
+}
+.bi__card--on {
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-face);
+  border-color: var(--btn-primary-edge);
+}
+.bi__listRow {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.bi__listRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.bi__offer {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+.bi__offer > .field {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+/* What the website said, next to the field rather than inside it — a
+   suggestion the reader has not accepted is not their answer. */
+.bi__suggest {
+  margin-top: 1.6rem;
+  padding: 1.3rem 1.6rem;
+  border-radius: var(--r-md);
+  background: var(--info-dim);
+  border: 1px solid var(--info-edge);
+}
+.bi__suggest--kept {
+  background: rgba(var(--tint), 0.04);
+  border-color: var(--stroke-soft);
+}
+.bi__suggestHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.18rem;
+  font-weight: 600;
+  color: var(--tx-2);
+  margin-bottom: 0.6rem;
+}
+.bi__suggestBody {
+  font-size: 1.26rem;
+  line-height: 1.7;
+  color: var(--tx-2);
+  margin-bottom: 1rem;
+}
+.bi__state {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.8rem;
+}
+.bi__review {
+  display: flex;
+  flex-direction: column;
+}
+.bi__row {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  padding: 1.4rem 0;
+  border-bottom: 1px solid var(--stroke-soft);
+}
+.bi__row:last-child {
+  border-bottom: 0;
+}
+.bi__rowText {
+  flex: 1;
+  min-width: 0;
+}
+.bi__rowLabel {
+  font-size: 1.2rem;
+  color: var(--tx-3);
+  margin-bottom: 0.35rem;
+}
+.bi__rowValue {
+  font-size: 1.34rem;
+  color: var(--tx-1);
+  line-height: 1.6;
+}
+.bi__rowValue--empty {
+  color: var(--tx-4);
+}
