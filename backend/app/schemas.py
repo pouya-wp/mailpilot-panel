@@ -49,6 +49,13 @@ class CampaignIn(Body):
     agent: str | None = None
     segment: str | None = None
     scheduled_for: str | None = None
+    #: 'manual' is the flow this product has always had: one body, merge
+    #: tags, the same email to everyone. 'professional' researches and
+    #: writes a separate email for each recipient.
+    write_mode: Literal["manual", "professional"] = "manual"
+    #: What this campaign is for, in the sender's own words. Only read by
+    #: professional mode, where it steers which offer gets chosen.
+    goal: str = ""
 
 
 class CampaignPatch(Body):

@@ -91,6 +91,11 @@ def campaign(row: sqlite3.Row, *, detail: bool = False) -> dict[str, Any]:
         "name": bi(row, "name"),
         "subject": bi(row, "subject"),
         "type": row["type"],
+        # How it was written, so the panel can show the right progress: a
+        # professional campaign researches and writes before it sends, and
+        # "queued" means something different in each mode.
+        "writeMode": _maybe(row, "write_mode") or "manual",
+        "goal": _maybe(row, "goal") or "",
         "status": row["status"],
         "agent": row["agent_id"],
         "segment": row["segment_id"],

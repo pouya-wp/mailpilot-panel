@@ -60,11 +60,36 @@ CREATE TABLE IF NOT EXISTS outbox (
   error       TEXT NOT NULL DEFAULT '',
   message_id  TEXT NOT NULL DEFAULT '',
   queued_at   TEXT NOT NULL,
-  sent_at     TEXT NOT NULL DEFAULT ''
+  sent_at     TEXT NOT NULL DEFAULT '',
+  -- Per-recipient copy, written by Beyondex Professional mode. Empty in
+  -- manual mode, where every row shares the campaign's one body.
+  subject     TEXT NOT NULL DEFAULT '',
+  body        TEXT NOT NULL DEFAULT '',
+  -- What the reviewer scored this draft, and what it thought. Kept so an
+  -- operator can see WHY a message was held rather than only that it was.
+  review      TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_outbox_pending ON outbox(status, campaign_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_campaign ON outbox(campaign_id);
 """
+
+#: Columns added to `outbox` after it first shipped. Same idempotent dance
+#: as everywhere else: CREATE TABLE IF NOT EXISTS will not add a column to a
+#: table that already exists, and a panel installed last month has one.
+_ADDED_COLUMNS = {
+    "subject": "TEXT NOT NULL DEFAULT ''",
+    "body": "TEXT NOT NULL DEFAULT ''",
+    "review": "TEXT NOT NULL DEFAULT ''",
+}
+
+
+def migrate() -> None:
+    have = {r["name"] for r in db.query("PRAGMA table_info(outbox)")}
+    if not have:
+        return
+    for column, ddl in _ADDED_COLUMNS.items():
+        if column not in have:
+            db.execute(f"ALTER TABLE outbox ADD COLUMN {column} {ddl}")
 
 _worker: threading.Thread | None = None
 _wake = threading.Event()
@@ -121,6 +146,11 @@ def progress(campaign_id: str) -> dict[str, int]:
         "queued": out.get("queued", 0),
         "sent": out.get("sent", 0),
         "failed": out.get("failed", 0),
+        # Written, reviewed, and not good enough to send. Kept apart from
+        # `failed`, which means Gmail refused it — an operator can do
+        # something about one of those and nothing about the other.
+        "held": out.get("held", 0),
+        "suppressed": out.get("suppressed", 0),
         "total": sum(out.values()),
     }
 
@@ -282,6 +312,15 @@ def _drain() -> None:
             db.update("outbox", row["id"], {"status": "suppressed", "sent_at": iso()})
             continue
 
+        # Beyondex Professional writes this one its own email first. A row
+        # that already has a body is one an earlier run composed, so a
+        # restart does not pay for the same prospect twice.
+        if (_maybe(campaign, "write_mode") == "professional"
+                and not (_maybe(row, "body") or "").strip()):
+            if not _compose_one(row, campaign):
+                continue
+            row = db.one("SELECT * FROM outbox WHERE id = ?", (row["id"],))
+
         try:
             if not token or time.time() - token_at > 45 * 60:
                 token = access_token()
@@ -293,12 +332,19 @@ def _drain() -> None:
             # campaign when it was written. Marking a template "use for all"
             # has to affect the next thing that goes out, including campaigns
             # that already existed.
+            # The row's own copy if professional mode wrote some, otherwise
+            # the campaign's. One sender, two modes: manual mode simply
+            # never fills these in.
+            own_body = (_maybe(row, "body") or "").strip()
+            own_subject = (_maybe(row, "subject") or "").strip()
+            body_src = own_body or (campaign["body_en"] or "")
+            subject_src = own_subject or (campaign["subject_en"] or "")
+
             dressed = emailhtml.wrap_for_send(
-                db, campaign["body_en"] or "",
-                subject=campaign["subject_en"] or "",
+                db, body_src, subject=subject_src,
             )
             html = _personalise(dressed, person, campaign["id"])
-            subject = _personalise(campaign["subject_en"] or "", person, campaign["id"])
+            subject = _personalise(subject_src, person, campaign["id"])
 
             raw = google.build_message(
                 to=row["email"],
@@ -336,6 +382,74 @@ def _drain() -> None:
                 return
 
         time.sleep(SEND_INTERVAL)
+
+
+def _compose_one(row, campaign) -> bool:
+    """Research, plan, write and review one prospect's email.
+
+    Returns whether there is now something to send. A held draft is NOT a
+    failure — it is the reviewer doing its job — so it gets its own status
+    and keeps its reason, rather than being marked failed and looking like
+    Gmail refused it.
+    """
+    from . import brandprofile, professional
+    from .ai_provider import AIUnavailable
+
+    contact = db.one("SELECT * FROM contacts WHERE id = ?", (row["contact_id"],))
+    person = {
+        "email": row["email"],
+        "name": row["name"],
+        "company": _maybe(contact, "company") if contact else "",
+        "website": _maybe(contact, "website") if contact else "",
+        "country": (contact["country"] if contact else "") or "",
+    }
+
+    try:
+        out = professional.compose_for(
+            person,
+            profile=brandprofile.get(),
+            goal=_maybe(campaign, "goal") or "",
+            lang=deployment.get().get("default_lang") or "en",
+        )
+    except AIUnavailable:
+        # No key, no search, no budget. The rest of this campaign will hit
+        # exactly the same wall, so put the row back and let the caller
+        # stop rather than burning through the queue one failure at a time.
+        db.update("outbox", row["id"], {"status": "queued"})
+        raise
+    except Exception as exc:  # noqa: BLE001 - one bad prospect must not stop the rest
+        db.update("outbox", row["id"], {
+            "status": "held", "error": f"compose failed: {exc}"[:400], "sent_at": iso(),
+        })
+        return False
+
+    if out.get("status") != "ready":
+        db.update("outbox", row["id"], {
+            "status": "held",
+            "error": (out.get("reason") or "")[:400],
+            "review": db.dumps(out.get("review") or {}),
+            "sent_at": iso(),
+        })
+        return False
+
+    db.update("outbox", row["id"], {
+        "subject": out.get("subject") or "",
+        "body": out.get("body") or "",
+        "review": db.dumps({"score": out.get("score"), **(out.get("review") or {})}),
+    })
+    return True
+
+
+def _maybe(row, key: str) -> str:
+    """Read a column an older database may not have yet.
+
+    The sender runs against whatever shape the disk is in; a deployment
+    mid-upgrade must not crash on a column added five minutes ago.
+    """
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return ""
 
 
 def _unsub_headers(d: dict, campaign_id: str, contact_id: str) -> dict[str, str]:

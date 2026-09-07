@@ -242,6 +242,10 @@ CREATE TABLE IF NOT EXISTS campaigns (
   revenue     REAL NOT NULL DEFAULT 0,
   scheduled_for TEXT,
   trend       TEXT NOT NULL DEFAULT '[]',
+  -- 'manual': one body, merge-tagged, the way campaigns have always worked.
+  -- 'professional': Beyondex researches and writes per recipient.
+  write_mode  TEXT NOT NULL DEFAULT 'manual',
+  goal        TEXT NOT NULL DEFAULT '',
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
 );
@@ -261,6 +265,10 @@ CREATE TABLE IF NOT EXISTS contacts (
   source_en  TEXT NOT NULL DEFAULT '', source_fa TEXT NOT NULL DEFAULT '',
   country    TEXT NOT NULL DEFAULT '',
   device     TEXT NOT NULL DEFAULT 'desktop',
+  -- What the email finder already knew and used to throw away on accept.
+  -- The website is the strongest identifier for researching a prospect.
+  website    TEXT NOT NULL DEFAULT '',
+  company    TEXT NOT NULL DEFAULT '',
   last_open_at TEXT,
   created_at TEXT NOT NULL
 );
@@ -493,7 +501,7 @@ def init_db() -> None:
     # The deployment row owns its own DDL (see app/deployment.py) so the
     # white-label layer stays removable in one piece.
     from .budget import SCHEMA as BUDGET_SCHEMA
-    from .mailer import SCHEMA as OUTBOX_SCHEMA
+    from .mailer import SCHEMA as OUTBOX_SCHEMA, migrate as migrate_outbox
     from .prospect import SCHEMA as LEADS_SCHEMA
     from .routers.chats import SCHEMA as CHAT_SCHEMA
     from .routers.design import SCHEMA as ASSET_SCHEMA, migrate as migrate_templates
@@ -511,8 +519,32 @@ def init_db() -> None:
     migrate()
     migrate_templates()
     migrate_brand()
+    migrate_outbox()
+    _migrate_contacts()
+    _migrate_campaigns()
     ensure_row()
     ensure_brand()
+
+
+def _migrate_campaigns() -> None:
+    """Columns added to `campaigns` after it first shipped."""
+    have = {r["name"] for r in query("PRAGMA table_info(campaigns)")}
+    if not have:
+        return
+    for column, ddl in (("write_mode", "TEXT NOT NULL DEFAULT 'manual'"),
+                        ("goal", "TEXT NOT NULL DEFAULT ''")):
+        if column not in have:
+            execute(f"ALTER TABLE campaigns ADD COLUMN {column} {ddl}")
+
+
+def _migrate_contacts() -> None:
+    """Columns added to `contacts` after it first shipped."""
+    have = {r["name"] for r in query("PRAGMA table_info(contacts)")}
+    if not have:
+        return
+    for column in ("website", "company"):
+        if column not in have:
+            execute(f"ALTER TABLE contacts ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
 
 
 def reset_db() -> None:

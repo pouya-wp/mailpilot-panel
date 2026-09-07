@@ -184,6 +184,29 @@ def _check_when(when: str | None) -> None:
         )
 
 
+def _check_professional(row) -> None:
+    """Professional mode needs a brand profile to write from.
+
+    Refusing here rather than at generation time is the difference between
+    one clear message before anything starts, and forty prospects each
+    researched, written, and then held for the same missing field.
+
+    It names what is missing, so the panel can walk the reader to the
+    question instead of telling them the profile is incomplete and leaving
+    them to find out which part.
+    """
+    from .. import brandprofile
+
+    done = brandprofile.completeness()
+    if done["proReady"]:
+        return
+    raise HTTPException(
+        status_code=422,
+        detail=("Beyondex Professional needs your brand information first. "
+                "Still missing: " + ", ".join(done["missingForPro"])),
+    )
+
+
 def _check_ready(row) -> None:
     """A campaign with nothing in it must not reach anybody.
 
@@ -197,6 +220,16 @@ def _check_ready(row) -> None:
     half-written. That is what a draft is.
     """
     import re as _re
+
+    # Professional mode writes a subject and a body per recipient, so the
+    # campaign legitimately has neither. Its own precondition is the brand
+    # profile, checked separately.
+    try:
+        if row["write_mode"] == "professional":
+            _check_professional(row)
+            return
+    except (IndexError, KeyError):
+        pass   # a database from before the column existed is manual
 
     body = (row["body_en"] or "").strip()
     # tags and whitespace are not content
@@ -284,6 +317,8 @@ def create_campaign(payload: CampaignIn, principal: Principal = Depends(requires
         "replies": 0, "unsubs": 0, "bounces": 0, "revenue": 0,
         "scheduled_for": payload.scheduled_for,
         "trend": db.dumps([]),
+        "write_mode": payload.write_mode,
+        "goal": (payload.goal or "").strip()[:2000],
         "created_at": now,
         "updated_at": now,
     }

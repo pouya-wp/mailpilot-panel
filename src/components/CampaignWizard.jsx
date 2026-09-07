@@ -63,6 +63,12 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   const [templates, setTemplates] = useState([])
   const [template, setTemplate] = useState('')
   const [subject, setSubject] = useState('')
+  /* 'manual' is the flow this product has always had. 'professional'
+     researches and writes a separate email for each recipient, so it does
+     not ask for a subject -- there is one per prospect. */
+  const [mode, setMode] = useState('manual')
+  const [goal, setGoal] = useState('')
+  const [brand, setBrand] = useState(null)
 
   // step 4
   const [when, setWhen] = useState('now')
@@ -88,6 +94,8 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   useEffect(() => {
     if (!open || step < 3) return
     api.get('/templates').then(setTemplates).catch(() => setTemplates([]))
+    // whether professional mode can run at all, and what it still needs
+    api.get('/brand-profile').then((p) => setBrand(p.completeness)).catch(() => {})
     api.get('/settings')
       .then((s) => {
         // the sending rules live under `sending`, not at the top level
@@ -150,7 +158,8 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   /* ---- step 4: make the campaign, attach the group, start it ---- */
   const launch = async () => {
     if (!template) return onToast?.(t('wiz.needTemplate'))
-    if (!subject.trim()) return onToast?.(t('wiz.needSubject'))
+    // professional mode writes its own subject, one per prospect
+    if (mode === 'manual' && !subject.trim()) return onToast?.(t('wiz.needSubject'))
     setBusy(true)
     try {
       // the design's own HTML becomes the campaign's body
@@ -161,6 +170,8 @@ export default function CampaignWizard({ open, onClose, onToast }) {
         subject: { en: subject.trim(), fa: subject.trim() },
         body: { en: html, fa: html },
         segment: kept?.groupId || undefined,
+        write_mode: mode,
+        goal: goal.trim(),
       })
       // the rate is a workspace setting, and the sender reads it per send,
       // so setting it here changes this campaign and every later one
@@ -211,7 +222,9 @@ export default function CampaignWizard({ open, onClose, onToast }) {
           )}
           {step === 3 && (
             <Button variant="primary" onClick={() => setStep(4)}
-                    disabled={!template || !subject.trim()}>
+                    disabled={!template
+                              || (mode === 'manual' && !subject.trim())
+                              || (mode === 'professional' && !brand?.proReady)}>
               {t('wiz.next')}
             </Button>
           )}
@@ -277,6 +290,51 @@ export default function CampaignWizard({ open, onClose, onToast }) {
 
         {step === 3 && (
           <div className="stack-v">
+            {/* Who writes it, asked before what it says — because in
+                professional mode the subject is not the reader's to type. */}
+            <div className="mode">
+              <button type="button"
+                      className={`mode__card${mode === 'manual' ? ' mode__card--on' : ''}`}
+                      onClick={() => setMode('manual')}>
+                <span className="mode__title">✍️ {t('mode.manual')}</span>
+                <span className="mode__hint">{t('mode.manualHint')}</span>
+              </button>
+              <button type="button"
+                      className={`mode__card${mode === 'professional' ? ' mode__card--on' : ''}`}
+                      onClick={() => setMode('professional')}>
+                <span className="mode__title">✨ {t('mode.pro')}</span>
+                <span className="mode__hint">{t('mode.proHint')}</span>
+                {brand && !brand.proReady && (
+                  <span className="mode__warn">{t('mode.proNeeds')}</span>
+                )}
+              </button>
+            </div>
+
+            {mode === 'professional' && brand && !brand.proReady && (
+              <Card>
+                <div className="strong">{t('mode.proNeeds')}</div>
+                <div className="faint">
+                  {t('mode.proMissing', { fields: brand.missingForPro.length })}
+                </div>
+                <Button size="sm" variant="ghost" style={{ marginTop: '1.2rem' }}
+                        onClick={() => { onClose?.(); navigate('settings') }}>
+                  {t('mode.goBrand')}
+                </Button>
+              </Card>
+            )}
+
+            {mode === 'professional' && brand?.proReady && (
+              <>
+                <Field label={t('mode.goal')} hint={t('mode.goalHint')}>
+                  <Input value={goal} onChange={(e) => setGoal(e.target.value)} />
+                </Field>
+                <p className="wiz__note">
+                  <IcWarn size={15} />
+                  {t('mode.proNote')}
+                </p>
+              </>
+            )}
+
             {templates.length === 0 ? (
               <Card>
                 <div className="strong">{t('wiz.noTemplates')}</div>
@@ -300,9 +358,14 @@ export default function CampaignWizard({ open, onClose, onToast }) {
                 />
               </Field>
             )}
-            <Field label={t('wiz.subject')} hint={t('wiz.subjectHint')} required>
-              <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </Field>
+            {/* Professional mode writes a subject per prospect, so asking
+                for one global subject here would be asking for something
+                that gets thrown away. */}
+            {mode === 'manual' && (
+              <Field label={t('wiz.subject')} hint={t('wiz.subjectHint')} required>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
+              </Field>
+            )}
           </div>
         )}
 

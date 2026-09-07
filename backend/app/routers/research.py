@@ -222,6 +222,11 @@ def accept(payload: AcceptIn,
                 "source_en": f"Research: {row['source']}"[:200],
                 "source_fa": f"تحقیق: {row['source']}"[:200],
                 "country": "", "device": "desktop",
+                # Carried across rather than discarded. The finder already
+                # read both; throwing them away made the later research step
+                # guess at what it had just been told.
+                "website": (row["website"] or "")[:300],
+                "company": (row["name"] or "")[:200],
                 "last_open_at": None, "created_at": iso(),
             })
             db.update("leads", row["id"], {"status": "accepted"})

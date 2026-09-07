@@ -1782,3 +1782,47 @@ html[dir='rtl'] .drawer__panel {
 .bi__rowValue--empty {
   color: var(--tx-4);
 }
+
+/* =====================  WRITING MODE  =====================
+   Two cards, one choice, and the difference between them is the
+   whole feature — so each carries its own sentence rather than a
+   label. Stacked on narrow screens; side by side when there is
+   room for both explanations to be read at once. */
+.mode {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  gap: 1.2rem;
+}
+.mode__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  text-align: start;
+  padding: 1.6rem 1.8rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--stroke-soft);
+  background: rgba(var(--tint), 0.035);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.mode__card:hover {
+  border-color: var(--stroke-strong);
+}
+.mode__card--on {
+  border-color: var(--accent);
+  background: var(--info-dim);
+}
+.mode__title {
+  font-size: 1.42rem;
+  font-weight: 600;
+  color: var(--tx-1);
+  line-height: 1.4;
+}
+.mode__hint {
+  font-size: 1.2rem;
+  line-height: 1.65;
+  color: var(--tx-3);
+}
+.mode__warn {
+  font-size: 1.14rem;
+  color: var(--warn);
+}
