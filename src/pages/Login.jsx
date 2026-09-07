@@ -18,7 +18,16 @@ export default function Login() {
   const { t, lang, langs, setLang, rtl, theme, toggleTheme } = useI18n()
   const { login } = useAuth()
 
-  const [email, setEmail] = useState('pouya@acme.io')
+  /* The last address that signed in on this browser, not a demo account
+     from the seed data. Wrapped because storage throws in a private
+     window and an unreadable convenience must not stop anyone signing in. */
+  const [email, setEmail] = useState(() => {
+    try {
+      return window.localStorage.getItem('mailpilot:lastEmail') || ''
+    } catch {
+      return ''
+    }
+  })
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -56,6 +65,13 @@ export default function Login() {
     setError(null)
     try {
       await login(email.trim(), password)
+      // remembered only once it is known to work, so a typo is not offered
+      // back on the next visit
+      try {
+        window.localStorage.setItem('mailpilot:lastEmail', email.trim())
+      } catch {
+        /* private window; the sign-in still worked */
+      }
     } catch (err) {
       setError(err)
       // shake, then put the caret back where the fix is
@@ -123,6 +139,9 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mono"
+              /* A shape, not a suggestion. This box used to arrive with a
+                 real address from the seed data already in it. */
+              placeholder="name@company.com"
             />
           </Field>
         </div>

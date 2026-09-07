@@ -218,7 +218,7 @@ export default function Team({ onToast, embedded }) {
         <div className="stack-v">
           <Field label={t('ct.email')} required>
             <Input
-              placeholder="teammate@acme.io"
+              placeholder="name@company.com"
               className="mono"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}

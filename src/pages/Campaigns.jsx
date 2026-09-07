@@ -21,9 +21,11 @@ import {
   useRecipients,
   useSegments,
   useSendCampaign,
+  useSettings,
 } from '../api/resources'
 import { Async } from '../ui/state'
 import { navigate, useRoute } from '../router'
+import { useConfig } from '../api/config'
 import PageHeader from '../layout/PageHeader'
 import {
   Avatar,
@@ -372,6 +374,11 @@ function CampaignDrawer({ campaign, onClose, onToast }) {
   const [tab, setTab] = useState('overview')
   const agents = useAgents()
   const segments = useSegments()
+  /* The preview must show THIS deployment's sender and brand. Both used
+     to be hardcoded to the demo fixtures, so a customer checking what
+     their campaign looks like was shown another company's letterhead. */
+  const { brand } = useConfig()
+  const settings = useSettings()
   const [send, sending] = useSendCampaign()
   const [act] = useCampaignAction()
 
@@ -523,10 +530,12 @@ function CampaignDrawer({ campaign, onClose, onToast }) {
               <span className="mail__dot" />
               <span className="mail__dot" />
               <span className="mail__dot" />
-              <span className="mail__addr">hello@mail.acme.io</span>
+              <span className="mail__addr">
+                {settings.data?.sending?.fromEmail || brand.supportEmail || ''}
+              </span>
             </div>
             <div className="mail__body" dir={lang === 'fa' ? 'rtl' : 'ltr'}>
-              <div className="mail__brand">ACME</div>
+              <div className="mail__brand">{brand.name}</div>
               <h2 className="mail__subject">{loc(c.subject, lang)}</h2>
               <p className="mail__p">
                 {lang === 'fa'
