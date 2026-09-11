@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from .. import db, deployment, emailhtml, exporting, mailer, sendtime
 from ..deps import Principal, current_principal, requires
 from ..domain import ago_iso, bi_get, bi_in, iso, like, log, paginate, record_event, seeded_series
-from ..schemas import CampaignIn, CampaignPatch, SendIn
+from ..schemas import Body, CampaignIn, CampaignPatch, SendIn
 from ..security import new_id
 from ..serial import campaign as ser
 from .audience import segment_members
@@ -437,6 +437,80 @@ def send_campaign(
         db.update("campaigns", campaign_id, {"recipients": queued})
 
     return ser(_get(campaign_id), detail=True)
+
+
+class VariantsIn(Body):
+    """One variable, two or more values. Never two variables at once."""
+
+    field: str = "subject"
+    values: list[str] = []
+
+
+@router.get("/{campaign_id}/variants")
+def read_variants(campaign_id: str, _: Principal = Depends(requires("analytics.view"))) -> dict:
+    """The test on this campaign, and how the split would fall."""
+    from .. import optimize
+
+    row = _get(campaign_id)
+    people = segment_members(row["segment_id"]) if row["segment_id"] else []
+    variants = db.query(
+        "SELECT * FROM campaign_variants WHERE campaign_id = ? ORDER BY label",
+        (campaign_id,))
+    return {
+        "fields": list(optimize.FIELDS),
+        "variants": [{"label": v["label"], "field": v["field"], "value": v["value"]}
+                     for v in variants],
+        # Shown before launch, so the reader sees the split they are agreeing
+        # to rather than discovering it afterwards.
+        "allocation": optimize.allocation(campaign_id, len(people)),
+        "minPerArm": int(optimize.limits()["min_sample"]),
+    }
+
+
+@router.put("/{campaign_id}/variants")
+def write_variants(campaign_id: str, payload: VariantsIn,
+                   _: Principal = Depends(requires("campaigns.write"))) -> dict:
+    from .. import optimize
+
+    row = _get(campaign_id)
+    if row["status"] not in SENDABLE:
+        raise HTTPException(status_code=409,
+                            detail="A campaign that has already gone out cannot be split into a test")
+    if not payload.values:
+        with db.transaction():
+            db.execute("DELETE FROM campaign_variants WHERE campaign_id = ?", (campaign_id,))
+        return read_variants(campaign_id)
+    if payload.field not in optimize.FIELDS:
+        raise HTTPException(
+            status_code=422,
+            detail="Test one thing at a time: the subject, the call to action, or the angle")
+    if len([v for v in payload.values if v.strip()]) < 2:
+        raise HTTPException(status_code=422, detail="A test needs at least two versions")
+    optimize.set_variants(campaign_id, payload.field, payload.values)
+    return read_variants(campaign_id)
+
+
+@router.get("/{campaign_id}/result")
+def campaign_result(campaign_id: str, _: Principal = Depends(requires("analytics.view"))) -> dict:
+    """Which arm won, or that the evidence does not yet say.
+
+    INCONCLUSIVE is a real answer here and the most common honest one.
+    """
+    from .. import optimize
+
+    _get(campaign_id)
+    return optimize.decide(campaign_id)
+
+
+@router.get("/{campaign_id}/recommendation")
+def campaign_recommendation(campaign_id: str,
+                            _: Principal = Depends(requires("analytics.view"))) -> dict:
+    """What similar past campaigns suggest. A suggestion, never applied."""
+    from .. import optimize
+
+    row = _get(campaign_id)
+    out = optimize.recommend(row["segment_id"])
+    return out or {"enough": False, "none": True}
 
 
 @router.get("/{campaign_id}/preflight")

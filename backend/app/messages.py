@@ -129,6 +129,12 @@ FA: dict[str, str] = {
     "A workspace must keep at least one owner": "هر فضای کاری باید دست‌کم یک مالک داشته باشد",
     "Only an owner can promote someone to owner": "فقط مالک می‌تواند کسی را به مالک ارتقا دهد",
     "You cannot remove yourself": "خودتان را نمی‌توانید حذف کنید",
+    # --------------------------------------------------------------- A/B
+    "A campaign that has already gone out cannot be split into a test":
+        "کمپینی که ارسال شده را نمی‌توان به آزمون A/B تبدیل کرد",
+    "A test needs at least two versions": "هر آزمون دست‌کم به دو نسخه نیاز دارد",
+    "Test one thing at a time: the subject, the call to action, or the angle":
+        "هر بار یک چیز را آزمایش کنید: موضوع، دعوت به اقدام، یا زاویهٔ ایمیل",
     # -------------------------------------------------------- sender health
     "Sending is paused because this account's sender health is critical. "
     "Open Sender Health to see what to fix.":

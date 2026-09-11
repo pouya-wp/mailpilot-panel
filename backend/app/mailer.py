@@ -67,7 +67,11 @@ CREATE TABLE IF NOT EXISTS outbox (
   body        TEXT NOT NULL DEFAULT '',
   -- What the reviewer scored this draft, and what it thought. Kept so an
   -- operator can see WHY a message was held rather than only that it was.
-  review      TEXT NOT NULL DEFAULT ''
+  review      TEXT NOT NULL DEFAULT '',
+  -- Which arm of an A/B test this recipient was dealt. Empty for the
+  -- overwhelming majority of sends, which are not tests. Written once and
+  -- never changed: nobody may receive two first-touch variants.
+  variant     TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_outbox_pending ON outbox(status, campaign_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_campaign ON outbox(campaign_id);
@@ -80,6 +84,7 @@ _ADDED_COLUMNS = {
     "subject": "TEXT NOT NULL DEFAULT ''",
     "body": "TEXT NOT NULL DEFAULT ''",
     "review": "TEXT NOT NULL DEFAULT ''",
+    "variant": "TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -112,17 +117,24 @@ def enqueue(campaign_id: str, *, recipients: list[dict]) -> int:
     campaign and the last message leaving, and somebody who unsubscribes
     inside that window must not receive the rest of it.
     """
+    from . import optimize
+
     now = iso()
     verdict = eligibility.classify(campaign_id, recipients)
+    # Assigned against the ELIGIBLE list, not the selected one, so the arms
+    # stay even after suppression rather than even before it.
+    arms = optimize.assign(campaign_id, verdict["eligible"])
 
     queued = 0
     with db.transaction():
         for person in verdict["eligible"]:
+            email = (person.get("email") or "").strip().lower()
             db.insert("outbox", {
                 "id": new_id("out"), "campaign_id": campaign_id,
                 "contact_id": person.get("id") or "",
-                "email": (person.get("email") or "").strip().lower(),
+                "email": email,
                 "name": person.get("name") or "", "status": "queued",
+                "variant": arms.get(email, ""),
                 "queued_at": now,
             })
             queued += 1

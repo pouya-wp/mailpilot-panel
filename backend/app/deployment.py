@@ -164,6 +164,9 @@ _ADDED_COLUMNS = {
     # senderhealth.DEFAULTS" -- there is no universally safe bounce rate,
     # so a deployment that knows its own numbers can say so.
     "health_thresholds": "TEXT NOT NULL DEFAULT '{}'",
+    # A/B and learning thresholds, same reasoning: the minimum sample before
+    # a winner may be declared is a judgement, not a constant.
+    "optimize_settings": "TEXT NOT NULL DEFAULT '{}'",
 }
 
 
