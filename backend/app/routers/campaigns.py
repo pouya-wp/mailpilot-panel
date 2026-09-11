@@ -121,6 +121,27 @@ def best_time(_: Principal = Depends(requires("analytics.view"))) -> dict:
     """
     return sendtime.recommend()
 
+@router.get("/preflight")
+def preflight_for_segment(segment: str = "",
+                          _: Principal = Depends(requires("analytics.view"))) -> dict:
+    """Who a campaign to this group would reach, before one exists.
+
+    Declared above `/{campaign_id}` on purpose: FastAPI matches in order,
+    and below it the word "preflight" is read as a campaign id.
+    """
+    from .. import eligibility, senderhealth
+
+    people = segment_members(segment) if segment else []
+    out = eligibility.summary("", people)
+    health = senderhealth.status()
+    out["senderHealth"] = {
+        "status": health["status"],
+        "score": health["score"],
+        "blocking": health["status"] == "CRITICAL",
+    }
+    return out
+
+
 @router.get("/{campaign_id}")
 def get_campaign(campaign_id: str, _: Principal = Depends(requires("analytics.view"))) -> dict:
     row = _get(campaign_id)

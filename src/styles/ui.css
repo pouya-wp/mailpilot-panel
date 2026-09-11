@@ -1938,3 +1938,47 @@ html[dir='rtl'] .drawer__panel {
 .shealth__reason--bad::before {
   background: var(--bad);
 }
+
+/* =====================  PRE-FLIGHT SUMMARY  =====================
+   Before launch, not after: after launch it is a post-mortem. */
+.pf {
+  display: flex;
+  flex-direction: column;
+}
+.pf__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.6rem;
+  padding: 0.7rem 0;
+  font-size: 1.3rem;
+  color: var(--tx-2);
+  border-bottom: 1px solid var(--stroke-soft);
+}
+.pf__row:last-child {
+  border-bottom: 0;
+}
+.pf__row--strong {
+  color: var(--tx-1);
+  font-weight: 600;
+}
+.pf__row--muted {
+  color: var(--tx-3);
+}
+.pf__value {
+  font-variant-numeric: tabular-nums;
+}
+.pf__note {
+  margin: 1.2rem 0 0;
+  font-size: 1.18rem;
+  color: var(--tx-3);
+  line-height: 1.6;
+}
+.pf__blocked {
+  margin: 0.8rem 0 0;
+  padding: 1rem 1.3rem;
+  border-radius: var(--r-md);
+  background: var(--bad-dim);
+  border: 1px solid var(--bad-edge);
+  color: var(--bad);
+  font-size: 1.22rem;
+}

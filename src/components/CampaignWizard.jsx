@@ -75,6 +75,16 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   const [at, setAt] = useState('')
   const [rate, setRate] = useState(50)
   const [quiet, setQuiet] = useState(null)
+  /* Who this would actually reach, and who it would not. Fetched on
+     the last step because it is a question about a campaign that now
+     has an audience. */
+  const [flight, setFlight] = useState(null)
+  const [madeId, setMadeId] = useState('')
+  /* An optional A/B test on one variable. Off by default: the
+     overwhelming majority of sends are not tests. */
+  const [abField, setAbField] = useState('')
+  const [abA, setAbA] = useState('')
+  const [abB, setAbB] = useState('')
 
   /* Reset on close rather than on open: reopening should be a fresh run, and
      doing it on open would wipe the state the moment React re-rendered. */
@@ -85,6 +95,7 @@ export default function CampaignWizard({ open, onClose, onToast }) {
       setFound(null); setKept(null)
       setTemplate(''); setSubject('')
       setWhen('now'); setAt(''); setRate(50)
+      setAbField(''); setAbA(''); setAbB(''); setFlight(null)
     }, 250)
     return () => clearTimeout(id)
   }, [open])
@@ -105,6 +116,16 @@ export default function CampaignWizard({ open, onClose, onToast }) {
       })
       .catch(() => {})
   }, [open, step])
+
+  /* The pre-flight, once there is a group to ask about. Read-only: nothing
+     is queued and nothing is created, so opening step 4 and closing the
+     dialog again leaves no trace. */
+  useEffect(() => {
+    if (!open || step !== 4 || !kept?.groupId) return
+    api.get(`/campaigns/preflight?segment=${encodeURIComponent(kept.groupId)}`)
+      .then(setFlight)
+      .catch(() => setFlight(null))
+  }, [open, step, kept])
 
   const total = kept?.added || 0
   const hours = rate > 0 ? Math.ceil(total / rate) : 0
@@ -173,6 +194,13 @@ export default function CampaignWizard({ open, onClose, onToast }) {
         write_mode: mode,
         goal: goal.trim(),
       })
+      // The test, if one was defined. Before the send, because assignment
+      // happens as the queue is filled and a variant defined afterwards
+      // would apply to nobody.
+      if (abField && abA.trim() && abB.trim()) {
+        await api.put(`/campaigns/${made.id}/variants`,
+                      { field: abField, values: [abA.trim(), abB.trim()] })
+      }
       // the rate is a workspace setting, and the sender reads it per send,
       // so setting it here changes this campaign and every later one
       await api.patch('/settings', { throttle_per_hour: rate }).catch(() => {})
@@ -366,6 +394,42 @@ export default function CampaignWizard({ open, onClose, onToast }) {
                 <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
               </Field>
             )}
+
+            {/* Optional, and only in manual mode: professional mode writes a
+                different subject per prospect, so "version A's subject" is
+                not a thing that exists there. */}
+            {mode === 'manual' && (
+              <Card>
+                <div className="strong" style={{ marginBottom: '0.4rem' }}>{t('ab.title')}</div>
+                <div className="faint" style={{ marginBottom: '1.2rem' }}>{t('ab.oneThing')}</div>
+                <Segmented
+                  size="sm"
+                  value={abField || 'off'}
+                  onChange={(v) => setAbField(v === 'off' ? '' : v)}
+                  options={[
+                    { value: 'off', label: t('ab.off') },
+                    { value: 'subject', label: t('ab.subject') },
+                    { value: 'cta', label: t('ab.cta') },
+                    { value: 'angle', label: t('ab.angle') },
+                  ]}
+                />
+                {abField && (
+                  <div className="stack-v" style={{ marginTop: '1.4rem' }}>
+                    <Field label={t('ab.a')}>
+                      <Input value={abA} onChange={(e) => setAbA(e.target.value)} />
+                    </Field>
+                    <Field label={t('ab.b')}>
+                      <Input value={abB} onChange={(e) => setAbB(e.target.value)} />
+                    </Field>
+                    {/* The split, shown before launch rather than discovered
+                        afterwards. */}
+                    <p className="faint">
+                      {t('ab.allocation', { n: nf(Math.floor((kept?.added || 0) / 2)) })}
+                    </p>
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
         )}
 
@@ -391,6 +455,25 @@ export default function CampaignWizard({ open, onClose, onToast }) {
                 options={RATES.map((r) => ({ value: String(r), label: nf(r) }))}
               />
             </Field>
+            {flight && (
+              <Card>
+                <div className="strong" style={{ marginBottom: '1rem' }}>{t('pf.title')}</div>
+                <div className="pf">
+                  <PfRow label={t('pf.selected')} value={nf(flight.selected)} t={t} />
+                  <PfRow label={t('pf.eligible')} value={nf(flight.eligible)} strong t={t} />
+                  {Object.entries(flight.counts || {})
+                    .filter(([, n]) => n > 0)
+                    .map(([reason, n]) => (
+                      <PfRow key={reason} label={t(`pf.${reason}`)} value={nf(n)} muted t={t} />
+                    ))}
+                </div>
+                <p className="pf__note">{t('pf.cannotOverride')}</p>
+                {flight.senderHealth?.blocking && (
+                  <p className="pf__blocked">{t('pf.blocked')}</p>
+                )}
+              </Card>
+            )}
+
             <Card>
               <div className="strong" style={{ marginBottom: '0.6rem' }}>{t('wiz.plan')}</div>
               <div className="muted">{plan}</div>
@@ -404,5 +487,17 @@ export default function CampaignWizard({ open, onClose, onToast }) {
         )}
       </div>
     </Modal>
+  )
+}
+
+
+/* One line of the pre-flight summary. The excluded reasons are muted: the
+   number that matters is how many will actually be written to. */
+function PfRow({ label, value, strong, muted, t }) {
+  return (
+    <div className={`pf__row${strong ? ' pf__row--strong' : ''}${muted ? ' pf__row--muted' : ''}`}>
+      <span>{label}</span>
+      <span className="pf__value">{value}</span>
+    </div>
   )
 }
