@@ -13,6 +13,7 @@ import { useI18n } from '../i18n'
 import { useDeliverability, useDomains } from '../api/resources'
 import { navigate } from '../router'
 import PageHeader from '../layout/PageHeader'
+import SenderHealth from '../components/SenderHealth'
 import { Badge, Button, Card, CardHead, Gauge, Grid, Kpi, Progress, Stagger } from '../ui'
 import { AreaChart, BarList } from '../ui/charts'
 import { IcCheckC, IcGlobe, IcRefresh, IcShield, IcSignal, IcWarn } from '../components/NavIcons'
@@ -27,6 +28,14 @@ export default function Deliverability({ onToast, embedded }) {
   const domainsQ = useDomains()
   const d = query.data || {}
   const tot = { bounceRate: d.bounceRate || 0 }
+
+  /* A rate needs sends behind it to mean anything. Below the floor these
+     say so, exactly as the Sender Health card above them does — two cards
+     on one screen disagreeing about the same fact makes the honest one
+     look broken. */
+  const behind = d.sample ?? 0
+  const enough = behind >= (d.minSample ?? 50)
+  const orNotYet = (value) => (enough ? value : t('sh.notEnough'))
   const PROVIDERS = d.providers || []
   const domains = domainsQ.data || []
   const warmup = d.warmup || { day: 0, total: 30, today: 0, cap: 1 }
@@ -55,14 +64,15 @@ export default function Deliverability({ onToast, embedded }) {
       )}
 
       <Stagger className="stack-v">
+        <SenderHealth onToast={onToast} />
         <div className="kpirow" style={{ margin: 0 }}>
           {/* All four are measured on this account's own campaigns. The
               inbox-placement and complaint rates that used to sit here needed
               seed-list testing and a feedback loop we do not have. */}
           <Kpi label={t('m.reputation')} value={nf(d.reputation || 0)} icon={<IcShield size={15} />} />
-          <Kpi label={t('m.deliveryRate')} value={pct(d.deliveryRate || 0, 1)} icon={<IcSignal size={15} />} />
-          <Kpi label={t('m.bounceRate')} value={pct(tot.bounceRate, 2)} deltaInvert />
-          <Kpi label={t('m.unsubRate')} value={pct(d.unsubRate || 0, 2)} deltaInvert />
+          <Kpi label={t('m.deliveryRate')} value={orNotYet(pct(d.deliveryRate || 0, 1))} icon={<IcSignal size={15} />} />
+          <Kpi label={t('m.bounceRate')} value={orNotYet(pct(tot.bounceRate, 2))} deltaInvert />
+          <Kpi label={t('m.unsubRate')} value={orNotYet(pct(d.unsubRate || 0, 2))} deltaInvert />
         </div>
 
         <div className="cols cols--wide-narrow">

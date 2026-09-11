@@ -416,6 +416,18 @@ def _provider_mix() -> list[dict]:
     )
 
 
+def _health_sample() -> int:
+    from .. import senderhealth
+
+    return senderhealth.signals()["sent"]
+
+
+def _health_limits() -> dict:
+    from .. import senderhealth
+
+    return senderhealth.thresholds()
+
+
 def _warmup() -> dict:
     """Today's real volume against the workspace's own hourly throttle."""
     today = iso()[:10]
@@ -483,6 +495,12 @@ def deliverability(_: Principal = Depends(requires("analytics.view"))) -> dict:
         "providers": _provider_mix(),
         "warmup": _warmup(),
         "issues": issues,
+        # How much is actually behind the rates above, and how much there
+        # needs to be before they mean anything. Sent so the client can say
+        # "not enough data" with the same floor the health card uses --
+        # two figures on one screen must not disagree.
+        "sample": _health_sample(),
+        "minSample": int(_health_limits()["min_sample"]),
         # Reputation over time, from delivered-vs-sent on the campaigns that
         # went out each day.
         "reputationSeries": _reputation_series(30),
