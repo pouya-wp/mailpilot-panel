@@ -129,6 +129,11 @@ FA: dict[str, str] = {
     "A workspace must keep at least one owner": "هر فضای کاری باید دست‌کم یک مالک داشته باشد",
     "Only an owner can promote someone to owner": "فقط مالک می‌تواند کسی را به مالک ارتقا دهد",
     "You cannot remove yourself": "خودتان را نمی‌توانید حذف کنید",
+    # -------------------------------------------------------- sender health
+    "Sending is paused because this account's sender health is critical. "
+    "Open Sender Health to see what to fix.":
+        "ارسال متوقف شده چون سلامت ارسال این حساب بحرانی است. برای دیدن آنچه "
+        "باید درست شود، بخش سلامت ارسال را باز کنید.",
     # ------------------------------------------------------ brand information
     "Add a website address first": "اول نشانی وب‌سایت را وارد کنید",
     "Nothing to apply": "چیزی برای اعمال کردن نیست",

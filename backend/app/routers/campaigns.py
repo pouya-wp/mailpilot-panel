@@ -406,6 +406,19 @@ def send_campaign(
                 status_code=409,
                 detail="Connect a Gmail account in Settings before sending",
             )
+        # A critically unhealthy account does not get to start another
+        # campaign. Refused here, before the status moves, so nothing is
+        # queued that would then have to be unpicked -- and only CRITICAL
+        # refuses, because a warning that blocked sending is a feature
+        # customers would switch off.
+        from .. import senderhealth
+
+        if senderhealth.blocking():
+            raise HTTPException(
+                status_code=409,
+                detail=("Sending is paused because this account's sender health "
+                        "is critical. Open Sender Health to see what to fix."),
+            )
         data |= {"status": "running", "scheduled_for": None,
                  "trend": db.dumps(seeded_series(14, base=max(row["recipients"] / 40, 1), seed=7))}
 
@@ -424,6 +437,29 @@ def send_campaign(
         db.update("campaigns", campaign_id, {"recipients": queued})
 
     return ser(_get(campaign_id), detail=True)
+
+
+@router.get("/{campaign_id}/preflight")
+def preflight(campaign_id: str, _: Principal = Depends(requires("analytics.view"))) -> dict:
+    """Who this campaign would actually reach, and who it would not.
+
+    The same call the sender makes when it fills the queue, so this is a
+    promise rather than an estimate. Read-only: nothing is queued, nothing
+    is suppressed, and running it twice changes nothing.
+    """
+    from .. import eligibility, senderhealth
+
+    row = _get(campaign_id)
+    people = segment_members(row["segment_id"]) if row["segment_id"] else []
+    out = eligibility.summary(campaign_id, people)
+    health = senderhealth.status()
+    out["senderHealth"] = {
+        "status": health["status"],
+        "score": health["score"],
+        "blocking": health["status"] == "CRITICAL",
+        "reasons": health["reasons"],
+    }
+    return out
 
 
 @router.get("/{campaign_id}/recipients")

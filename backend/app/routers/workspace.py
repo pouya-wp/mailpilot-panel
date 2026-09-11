@@ -266,19 +266,39 @@ def verify_domain(domain_id: str, principal: Principal = Depends(requires("setti
     row = db.one("SELECT * FROM domains WHERE id = ?", (domain_id,))
     if row is None:
         raise HTTPException(status_code=404, detail="Domain not found")
-    records = db.query("SELECT * FROM dns_records WHERE domain_id = ?", (domain_id,))
+    # This used to write spf=1, dkim=1, dmarc=1 and mark every record `ok`
+    # WITHOUT RESOLVING ANYTHING, so the screen a customer checks before a
+    # large send showed three green ticks for a domain with no SPF record.
+    # It now actually looks the records up, and anything it cannot determine
+    # is recorded as unknown rather than as a pass.
+    from .. import senderhealth
 
-    # A real deployment resolves these over DNS. The contract is what matters
-    # here: a domain is only "verified" when every record it needs resolves.
+    found = senderhealth.refresh_auth(domain_id)
+    records = db.query("SELECT * FROM dns_records WHERE domain_id = ?", (domain_id,))
+    passed = all(found[k] == "pass" for k in ("spf", "dkim", "dmarc"))
+
     with db.transaction():
         for r in records:
-            db.update("dns_records", r["id"], {"ok": 1})
-        db.update("domains", domain_id, {
-            "spf": 1, "dkim": 1, "dmarc": 1, "status": "verified",
-            "reputation": max(row["reputation"], 80),
-        })
-        log(kind="system", actor="system", action_en=f"verified {row['domain']}",
-            action_fa=f"دامنهٔ {row['domain']} تأیید شد", target=domain_id, tone="good")
+            # a record's tick follows the check its type belongs to
+            kind = (r["type"] or "").upper()
+            host = (r["host"] or "").lower()
+            if "_dmarc" in host:
+                state = found["dmarc"]
+            elif "_domainkey" in host:
+                state = found["dkim"]
+            elif kind == "TXT":
+                state = found["spf"]
+            else:
+                state = "unknown"
+            db.update("dns_records", r["id"], {"ok": 1 if state == "pass" else 0})
+        if passed:
+            db.update("domains", domain_id, {"reputation": max(row["reputation"], 80)})
+        log(kind="system", actor="system",
+            action_en=(f"verified {row['domain']}" if passed
+                       else f"checked {row['domain']} — not fully authenticated"),
+            action_fa=(f"دامنهٔ {row['domain']} تأیید شد" if passed
+                       else f"دامنهٔ {row['domain']} بررسی شد — احراز کامل نیست"),
+            target=domain_id, tone="good" if passed else "warn")
 
     row = db.one("SELECT * FROM domains WHERE id = ?", (domain_id,))
     return ser_domain(row, db.query("SELECT * FROM dns_records WHERE domain_id = ?", (domain_id,)))

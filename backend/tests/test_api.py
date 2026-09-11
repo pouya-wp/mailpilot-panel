@@ -619,13 +619,56 @@ def test_a_domain_must_look_like_a_domain(client, auth):
     assert client.post("/api/domains", headers=auth, json={"domain": "not a domain"}).status_code == 422
 
 
-def test_verifying_a_domain_resolves_its_records(client, auth):
+def test_a_domain_that_authenticates_is_verified(client, auth, monkeypatch):
+    """The happy path, with the lookups faked at the DNS boundary."""
+    from app import dnscheck
+
     made = client.post("/api/domains", headers=auth, json={"domain": "send.example.com"}).json()
     assert made["status"] == "unverified"
     assert all(not r["ok"] for r in made["records"])
+
+    monkeypatch.setattr(dnscheck, "check",
+                        lambda d: {"spf": "pass", "dkim": "pass", "dmarc": "pass"})
     verified = client.post(f"/api/domains/{made['id']}/verify", headers=auth).json()
     assert verified["status"] == "verified"
-    assert all(r["ok"] for r in verified["records"])
+
+
+def test_verification_never_fabricates_a_pass(client, auth, monkeypatch):
+    """The reason this route was rewritten.
+
+    It used to write spf=1, dkim=1, dmarc=1 and tick every DNS record
+    WITHOUT RESOLVING ANYTHING, so the screen a customer checks before a
+    large send showed three green ticks for a domain with no SPF record at
+    all. A lookup that cannot answer must leave the domain unverified.
+    """
+    from app import dnscheck, senderhealth
+
+    made = client.post("/api/domains", headers=auth, json={"domain": "unreachable.example"}).json()
+    monkeypatch.setattr(dnscheck, "check",
+                        lambda d: {"spf": "unknown", "dkim": "unknown", "dmarc": "unknown"})
+
+    after = client.post(f"/api/domains/{made['id']}/verify", headers=auth).json()
+    assert after["status"] == "unverified"
+    assert all(not r["ok"] for r in after["records"])
+
+    # and the health readout says unknown rather than claiming a failure:
+    # "we could not check" and "there is no record" are different answers
+    row = db.one("SELECT * FROM domains WHERE id = ?", (made["id"],))
+    assert row["spf_state"] == "unknown"
+
+
+def test_a_missing_spf_record_is_a_failure_not_an_unknown(client, auth, monkeypatch):
+    """The other half: an answer of "there is nothing there" is a fail."""
+    from app import dnscheck
+
+    made = client.post("/api/domains", headers=auth, json={"domain": "nospf.example"}).json()
+    monkeypatch.setattr(dnscheck, "check",
+                        lambda d: {"spf": "fail", "dkim": "unknown", "dmarc": "fail"})
+    client.post(f"/api/domains/{made['id']}/verify", headers=auth)
+
+    row = db.one("SELECT * FROM domains WHERE id = ?", (made["id"],))
+    assert row["spf_state"] == "fail"
+    assert row["spf"] == 0
 
 
 def test_webhooks_must_be_https_and_use_known_events(client, auth):

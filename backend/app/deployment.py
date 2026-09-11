@@ -160,6 +160,10 @@ _ADDED_COLUMNS = {
     "google_connected_at": "TEXT NOT NULL DEFAULT ''",
     "google_sync_at": "TEXT NOT NULL DEFAULT ''",
     "voice_axes": "INTEGER NOT NULL DEFAULT 1",
+    # Sender-health thresholds, as JSON. Empty means "use the defaults in
+    # senderhealth.DEFAULTS" -- there is no universally safe bounce rate,
+    # so a deployment that knows its own numbers can say so.
+    "health_thresholds": "TEXT NOT NULL DEFAULT '{}'",
 }
 
 

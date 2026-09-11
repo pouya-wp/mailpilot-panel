@@ -429,6 +429,29 @@ def _warmup() -> dict:
 
 
 
+@router.get("/sender-health")
+def sender_health(_: Principal = Depends(requires("analytics.view"))) -> dict:
+    """Whether this account is safe to send from, and why.
+
+    Not gated behind the insights module: this is a safety readout, not a
+    reporting feature, and a deployment that did not buy reporting still
+    needs to know its domain fails SPF.
+    """
+    from .. import senderhealth
+
+    return senderhealth.status()
+
+
+@router.post("/sender-health/recheck")
+def recheck_auth(_: Principal = Depends(requires("settings.write"))) -> dict:
+    """Look the DNS records up again, for every domain."""
+    from .. import senderhealth
+
+    for row in db.query("SELECT id FROM domains"):
+        senderhealth.refresh_auth(row["id"])
+    return senderhealth.status()
+
+
 @router.get("/deliverability", dependencies=[_needs("insights")])
 def deliverability(_: Principal = Depends(requires("analytics.view"))) -> dict:
     tot = totals()

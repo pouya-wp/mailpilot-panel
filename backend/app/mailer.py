@@ -35,7 +35,7 @@ import time
 import urllib.parse
 from typing import Any
 
-from . import db, deployment, emailhtml, google, pacing
+from . import db, deployment, eligibility, emailhtml, google, pacing
 from .config import settings
 from .domain import iso, log
 from .security import new_id
@@ -100,30 +100,41 @@ _lock = threading.Lock()
 
 
 def enqueue(campaign_id: str, *, recipients: list[dict]) -> int:
-    """Write one row per recipient. Returns how many were queued.
+    """Write one row per recipient that may be sent to. Returns how many.
 
-    Suppressed addresses are skipped here AND checked again at send time — the
-    gap between approving a campaign and finishing it can be hours.
+    The decision about WHO may be sent to belongs to `eligibility`, and the
+    pre-flight summary the customer read before launching is the very same
+    call — so what that screen promised is what this does. Every exclusion
+    is written down with its reason rather than silently skipped: "912 of
+    1,000" is only an acceptable thing to say if the other 88 can be named.
+
+    Checked again at send time, because hours pass between approving a
+    campaign and the last message leaving, and somebody who unsubscribes
+    inside that window must not receive the rest of it.
     """
     now = iso()
+    verdict = eligibility.classify(campaign_id, recipients)
+
     queued = 0
     with db.transaction():
-        for person in recipients:
-            email = (person.get("email") or "").strip().lower()
-            if not email or "@" not in email:
-                continue
-            if db.one("SELECT 1 FROM suppression WHERE lower(email) = ?", (email,)):
-                continue
-            if db.one("SELECT 1 FROM outbox WHERE campaign_id = ? AND email = ?",
-                      (campaign_id, email)):
-                continue  # already queued by an earlier approval of the same campaign
+        for person in verdict["eligible"]:
             db.insert("outbox", {
                 "id": new_id("out"), "campaign_id": campaign_id,
-                "contact_id": person.get("id") or "", "email": email,
+                "contact_id": person.get("id") or "",
+                "email": (person.get("email") or "").strip().lower(),
                 "name": person.get("name") or "", "status": "queued",
                 "queued_at": now,
             })
             queued += 1
+        # The excluded, kept as rows so the reason survives the page closing.
+        # They are never claimed by the sender: `_claim` only takes `queued`.
+        for person in verdict["excluded"]:
+            db.insert("outbox", {
+                "id": new_id("out"), "campaign_id": campaign_id,
+                "contact_id": "", "email": (person.get("email") or "").strip().lower(),
+                "name": person.get("name") or "", "status": "blocked",
+                "error": person["reason"], "queued_at": now,
+            })
     if queued:
         start()
     return queued
@@ -151,6 +162,11 @@ def progress(campaign_id: str) -> dict[str, int]:
         # something about one of those and nothing about the other.
         "held": out.get("held", 0),
         "suppressed": out.get("suppressed", 0),
+        # Refused by the pre-send gate: unsubscribed, suppressed, previously
+        # hard-bounced, malformed or duplicated. Counted separately from
+        # everything else because it is the one the customer chose nothing
+        # about and most needs explaining.
+        "blocked": out.get("blocked", 0),
         "total": sum(out.values()),
     }
 
@@ -307,9 +323,13 @@ def _drain() -> None:
             continue
 
         # Checked again here, not only at queue time: someone who unsubscribed
-        # while this was draining must not get the rest of the campaign.
-        if db.one("SELECT 1 FROM suppression WHERE lower(email) = ?", (row["email"],)):
-            db.update("outbox", row["id"], {"status": "suppressed", "sent_at": iso()})
+        # while this was draining must not get the rest of the campaign. The
+        # same gate as the pre-flight summary, so there is one answer to
+        # "may we send to this person" rather than two that can disagree.
+        refusal = eligibility.may_send_now(row["email"], row["campaign_id"])
+        if refusal:
+            db.update("outbox", row["id"], {
+                "status": "blocked", "error": refusal, "sent_at": iso()})
             continue
 
         # Beyondex Professional writes this one its own email first. A row

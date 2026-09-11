@@ -505,6 +505,7 @@ def init_db() -> None:
     from .prospect import SCHEMA as LEADS_SCHEMA
     from .routers.chats import SCHEMA as CHAT_SCHEMA
     from .routers.design import SCHEMA as ASSET_SCHEMA, migrate as migrate_templates
+    from .senderhealth import migrate as migrate_health
     from .brandprofile import SCHEMA as BRAND_SCHEMA
     from .brandprofile import ensure_row as ensure_brand, migrate as migrate_brand
     from .deployment import SCHEMA as DEPLOYMENT_SCHEMA, ensure_row, migrate
@@ -519,6 +520,7 @@ def init_db() -> None:
     migrate()
     migrate_templates()
     migrate_brand()
+    migrate_health()
     migrate_outbox()
     _migrate_contacts()
     _migrate_campaigns()
