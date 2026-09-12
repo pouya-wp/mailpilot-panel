@@ -20,6 +20,7 @@ import {
   useSeries,
 } from '../api/resources'
 import { api } from '../api/client'
+import { useApi } from '../api/hooks'
 import { navigate } from '../router'
 import { Async } from '../ui/state'
 import PageHeader from '../layout/PageHeader'
@@ -56,6 +57,10 @@ export default function Analytics({ embedded, onToast }) {
   const devicesQ = useDevices()
   const agentsQ = useAgents()
   const breakdownQ = useBreakdown(dim, metric)
+  /* The primary metrics (§14.1). Opens stay on the page, below
+     these, because customers expect them -- not because they
+     are what anything is optimised on. */
+  const replyQ = useApi('/stats/reply-quality')
 
   const tot = overview.data?.totals || {}
   /* Measured against the previous window by the server; zero when there is
@@ -143,6 +148,21 @@ export default function Analytics({ embedded, onToast }) {
           </div>
         </Card>
       )}
+
+        {/* Primary first, and literally first on the page: reply and
+            positive-reply. An open is a tracking pixel; a reply is a
+            person typing. */}
+        {replyQ.data && (
+          <div className="kpirow" style={{ margin: 0 }}>
+            <Kpi label={t('an.replyRate')}
+                 value={replyQ.data.enough ? pct((replyQ.data.replyRate || 0) * 100, 1) : t('sh.notEnough')}
+                 icon={<IcInbox size={15} />} />
+            <Kpi label={t('an.positiveRate')}
+                 value={replyQ.data.enough ? pct((replyQ.data.positiveReplyRate || 0) * 100, 1) : t('sh.notEnough')} />
+            <Kpi label={t('an.interested')} value={nf(replyQ.data.positives || 0)} />
+            <Kpi label={t('an.questions')} value={nf(replyQ.data.questions || 0)} />
+          </div>
+        )}
 
         <div className="kpirow" style={{ margin: 0 }}>
           <Kpi label={t('m.sent')} value={compact(tot.sent)}  icon={<IcSend size={15} />} />

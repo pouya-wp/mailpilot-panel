@@ -29,7 +29,7 @@ import { useI18n, loc } from '../i18n'
 import { api } from '../api/client'
 import { invalidate } from '../api/hooks'
 import { navigate } from '../router'
-import { Button, Card, Field, Input, Modal, Select, Segmented } from '../ui'
+import { Button, Card, Field, Input, Modal, Select, Segmented, Toggle } from '../ui'
 import { IcCheckC, IcSearch, IcSend, IcWarn } from './NavIcons'
 
 /* The workspace's own hourly cap is the real control — the sender enforces
@@ -42,7 +42,7 @@ const RATES = [10, 25, 50, 100, 250]
 const FIND_CEILING = 40
 
 export default function CampaignWizard({ open, onClose, onToast }) {
-  const { t, lang, nf } = useI18n()
+  const { t, lang, nf, pct } = useI18n()
 
   const [step, setStep] = useState(1)
   const [busy, setBusy] = useState(false)
@@ -69,6 +69,9 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   const [mode, setMode] = useState('manual')
   const [goal, setGoal] = useState('')
   const [brand, setBrand] = useState(null)
+  /* What similar past campaigns suggest. Advice, with its
+     evidence attached -- never applied on its own. */
+  const [reco, setReco] = useState(null)
 
   // step 4
   const [when, setWhen] = useState('now')
@@ -85,6 +88,10 @@ export default function CampaignWizard({ open, onClose, onToast }) {
   const [abField, setAbField] = useState('')
   const [abA, setAbA] = useState('')
   const [abB, setAbB] = useState('')
+  /* Low and medium fit are opt-in. The default is the two bands the
+     brief calls Recommended and Eligible. */
+  const [withMedium, setWithMedium] = useState(false)
+  const [withLow, setWithLow] = useState(false)
 
   /* Reset on close rather than on open: reopening should be a fresh run, and
      doing it on open would wipe the state the moment React re-rendered. */
@@ -96,6 +103,7 @@ export default function CampaignWizard({ open, onClose, onToast }) {
       setTemplate(''); setSubject('')
       setWhen('now'); setAt(''); setRate(50)
       setAbField(''); setAbA(''); setAbB(''); setFlight(null)
+      setWithMedium(false); setWithLow(false)
     }, 250)
     return () => clearTimeout(id)
   }, [open])
@@ -107,6 +115,13 @@ export default function CampaignWizard({ open, onClose, onToast }) {
     api.get('/templates').then(setTemplates).catch(() => setTemplates([]))
     // whether professional mode can run at all, and what it still needs
     api.get('/brand-profile').then((p) => setBrand(p.completeness)).catch(() => {})
+    // The recommendation rides along with the pre-flight, which already
+    // knows the group -- one request rather than two for the same answer.
+    if (kept?.groupId) {
+      api.get(`/campaigns/preflight?segment=${encodeURIComponent(kept.groupId)}`)
+        .then((f) => { setFlight(f); setReco(f.recommendation || null) })
+        .catch(() => {})
+    }
     api.get('/settings')
       .then((s) => {
         // the sending rules live under `sending`, not at the top level
@@ -137,6 +152,18 @@ export default function CampaignWizard({ open, onClose, onToast }) {
       hours: hours <= 1 ? t('wiz.underAnHour') : t('wiz.hours', { n: nf(hours) }),
     })
   }, [total, rate, hours, t, nf])
+
+  /* What launching right now would actually write to, under the bands the
+     reader has ticked. Recomputed here rather than asked of the server
+     again: the server sent the distribution, and the arithmetic over four
+     numbers does not need a round trip. */
+  const includedCount = useMemo(() => {
+    const f = flight?.fit
+    if (!f) return 0
+    return (f.HIGH_FIT || 0) + (f.GOOD_FIT || 0)
+      + (withMedium ? f.MEDIUM_FIT || 0 : 0)
+      + (withLow ? f.LOW_FIT || 0 : 0)
+  }, [flight, withMedium, withLow])
 
   const fail = (err) => onToast?.(err?.message || t('err.failed'))
 
@@ -395,6 +422,40 @@ export default function CampaignWizard({ open, onClose, onToast }) {
               </Field>
             )}
 
+            {/* Advice from comparable past campaigns, with the evidence
+                attached. Never applied on its own: the reader takes it or
+                ignores it (§14.8). */}
+            {reco?.enough && (
+              <Card>
+                <div className="strong" style={{ marginBottom: '0.4rem' }}>{t('an.reco')}</div>
+                <div className="muted">
+                  {t('an.recoBody', {
+                    n: nf((reco.campaigns || []).length),
+                    segment: reco.segment,
+                    cta: reco.ctaType || '—',
+                    rate: pct((reco.positiveReplyRate || 0) * 100, 1),
+                  })}
+                </div>
+                <div className="faint" style={{ marginTop: '0.6rem' }}>
+                  {t('an.recoSample', { n: nf(reco.sampleSize) })}
+                  {' · '}
+                  {t('ab.confidence')} {pct((reco.confidence || 0) * 100, 0)}
+                </div>
+                <div className="row" style={{ gap: '0.8rem', marginTop: '1.2rem' }}>
+                  <Button size="sm" variant="quiet" onClick={() => setReco(null)}>
+                    {t('an.recoIgnore')}
+                  </Button>
+                </div>
+              </Card>
+            )}
+            {reco && !reco.enough && !reco.none && (
+              <p className="faint">
+                {t('an.recoThin', {
+                  segment: reco.segment, n: nf(reco.sampleSize), needed: nf(reco.needed),
+                })}
+              </p>
+            )}
+
             {/* Optional, and only in manual mode: professional mode writes a
                 different subject per prospect, so "version A's subject" is
                 not a thing that exists there. */}
@@ -468,6 +529,34 @@ export default function CampaignWizard({ open, onClose, onToast }) {
                     ))}
                 </div>
                 <p className="pf__note">{t('pf.cannotOverride')}</p>
+
+                {/* Fit, beside the hygiene figures: one is about permission,
+                    the other about worth, and launching needs both. */}
+                {flight.fit && (
+                  <div className="pf__fit">
+                    <div className="strong" style={{ marginBottom: '0.8rem' }}>
+                      {t('fit.distribution')}
+                    </div>
+                    <div className="pf">
+                      {['HIGH_FIT', 'GOOD_FIT', 'MEDIUM_FIT', 'LOW_FIT'].map((band) => (
+                        <PfRow key={band} label={t(`fit.${band}`)}
+                               value={nf(flight.fit[band] || 0)}
+                               muted={band === 'LOW_FIT'} t={t} />
+                      ))}
+                    </div>
+                    <p className="pf__note">
+                      {t('fit.included', { n: nf(includedCount) })}
+                      {' '}
+                      {!withLow && t('fit.lowExcluded')}
+                    </p>
+                    <div className="pf__opts">
+                      <Toggle checked={withMedium} onChange={setWithMedium}
+                              label={t('fit.includeMedium')} />
+                      <Toggle checked={withLow} onChange={setWithLow}
+                              label={t('fit.includeLow')} />
+                    </div>
+                  </div>
+                )}
                 {flight.senderHealth?.blocking && (
                   <p className="pf__blocked">{t('pf.blocked')}</p>
                 )}

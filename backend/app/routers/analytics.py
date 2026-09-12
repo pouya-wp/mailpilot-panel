@@ -441,6 +441,48 @@ def _warmup() -> dict:
 
 
 
+@router.get("/stats/reply-quality")
+def reply_quality(_: Principal = Depends(requires("analytics.view"))) -> dict:
+    """Replies, split by what they actually were.
+
+    Counted off the sent outbox and the threads those addresses produced,
+    so the denominator is real deliveries rather than a campaign counter.
+    An out-of-office is a mail server and is excluded; an opt-out is a
+    reply and is never a positive one.
+    """
+    from .. import optimize
+
+    sent = db.scalar("SELECT COUNT(*) FROM outbox WHERE status = 'sent'", default=0) or 0
+    rows = db.query(
+        "SELECT intent, COUNT(*) n FROM threads "
+        "WHERE lower(email) IN (SELECT lower(email) FROM outbox WHERE status = 'sent') "
+        "GROUP BY intent")
+
+    by = {(r["intent"] or "question"): r["n"] for r in rows}
+    ooo = by.pop("ooo", 0)                      # a mail server, not a person
+    replies = sum(by.values())
+    positives = by.get("interested", 0)
+    questions = by.get("question", 0)
+
+    low, high = optimize.wilson(positives, sent)
+    return {
+        "sent": sent,
+        "replies": replies,
+        "positives": positives,
+        "questions": questions,
+        "outOfOffice": ooo,
+        "replyRate": optimize.rate(replies, sent),
+        "positiveReplyRate": optimize.rate(positives, sent),
+        "questionRate": optimize.rate(questions, sent),
+        # The interval, so the screen can refuse to look precise about a
+        # rate drawn from a handful of sends.
+        "positiveLow": round(low, 4),
+        "positiveHigh": round(high, 4),
+        "minSample": int(optimize.limits()["min_sample"]),
+        "enough": sent >= int(optimize.limits()["min_sample"]),
+    }
+
+
 @router.get("/sender-health")
 def sender_health(_: Principal = Depends(requires("analytics.view"))) -> dict:
     """Whether this account is safe to send from, and why.

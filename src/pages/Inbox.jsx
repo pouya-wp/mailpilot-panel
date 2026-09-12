@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 import { byId, loc, useI18n } from '../i18n'
 import { useAgents, useInbox, useReply, useSyncReplies, useTeam } from '../api/resources'
 import { api } from '../api/client'
+import { navigate } from '../router'
 import { invalidate } from '../api/hooks'
 import { Async } from '../ui/state'
 import PageHeader from '../layout/PageHeader'
@@ -55,6 +56,9 @@ export default function Inbox({ onToast }) {
   const [filter, setFilter] = useState('needs')
   const [openId, setOpenId] = useState(null)
   const [draft, setDraft] = useState(null) // null = show the agent's own text
+  const [writing, setWriting] = useState(false)
+  /* What the last generation said: its state, and what it still needs. */
+  const [copilot, setCopilot] = useState(null)
 
   /* The filter is a server round-trip: which threads are unhandled is the
      server's answer, and filtering a page of results client-side would only
@@ -75,6 +79,22 @@ export default function Inbox({ onToast }) {
       invalidate('/inbox')
     } catch (err) {
       onToast?.(err.message)
+    }
+  }
+
+  /* Draft a reply. Generates only -- sending is a separate call the
+     reader makes afterwards, and nothing here shortens that. */
+  const writeReply = async (threadId) => {
+    setWriting(true)
+    try {
+      const out = await api.post(`/inbox/${threadId}/copilot`)
+      setCopilot(out)
+      setDraft(null)
+      invalidate('/inbox')
+    } catch (err) {
+      onToast?.(err.message || t('err.failed'))
+    } finally {
+      setWriting(false)
     }
   }
 
@@ -217,16 +237,59 @@ export default function Inbox({ onToast }) {
                 <div className="msg msg--draft">
                   <div className="msg__label">
                     <IcSpark size={14} />
-                    {t('inbox.draftReply')} · {loc(ag?.name, lang)}
+                    {t('cp.title')} · {loc(ag?.name, lang)}
+                    {copilot?.status && (
+                      <Badge size="sm"
+                             tone={copilot.status === 'ready_for_review' ? 'good'
+                                   : copilot.status === 'missing_information' ? 'warn' : 'neutral'}>
+                        {t(`cp.s.${copilot.status}`)}
+                      </Badge>
+                    )}
                   </div>
+
                   {draft === null ? (
-                    loc(open.draft, lang)
+                    loc(open.draft, lang) || <span className="faint">{t('cp.humanOnly')}</span>
                   ) : (
                     <Textarea rows={5} value={draft} onChange={(e) => setDraft(e.target.value)} />
+                  )}
+
+                  {/* Why there is no draft, when there is none. Each of these
+                      is a correct outcome rather than a failure -- an opt-out
+                      is never answered, and an out-of-office is a mail
+                      server rather than a person. */}
+                  {copilot?.reason && !copilot.drafted && (
+                    <p className="cp__why">{t(`cp.why.${copilot.reason}`)}</p>
+                  )}
+
+                  {/* The valuable outcome: what only the reader can supply. */}
+                  {copilot?.missing?.length > 0 && (
+                    <div className="cp__missing">
+                      <div className="cp__missingHead">{t('cp.needs')}</div>
+                      <ul className="cp__missingList">
+                        {copilot.missing.map((m) => (
+                          <li key={m}>{t(`cp.m.${m}`, {}) !== `cp.m.${m}` ? t(`cp.m.${m}`) : m}</li>
+                        ))}
+                      </ul>
+                      {copilot.reason === 'brand-profile-incomplete' && (
+                        <Button size="sm" variant="ghost"
+                                onClick={() => navigate('settings')}>
+                          {t('cp.goBrand')}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
 
                 <div className="row" style={{ gap: '0.8rem', marginTop: '1.4rem', flexWrap: 'wrap' }}>
+                  <Button
+                    variant="ghost"
+                    icon={<IcSpark size={15} />}
+                    loading={writing}
+                    onClick={() => writeReply(open.id)}
+                  >
+                    {writing ? t('cp.working')
+                      : loc(open.draft, lang) ? t('cp.regenerate') : t('cp.generate')}
+                  </Button>
                   <Button
                     variant="primary"
                     icon={<IcSend size={15} />}

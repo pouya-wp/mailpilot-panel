@@ -13,6 +13,7 @@
    ============================================================ */
 import { useMemo, useState } from 'react'
 import { loc, useI18n } from '../i18n'
+import FitBadge from '../components/FitBadge'
 import { invalidate, useDebounced } from '../api/hooks'
 import { api } from '../api/client'
 import {
@@ -127,6 +128,15 @@ export default function Contacts({ onToast, embedded }) {
           </span>
         </span>
       ),
+    },
+    {
+      key: 'fit',
+      title: t('fit.label'),
+      width: 'minmax(0, 0.9fr)',
+      /* Next to engagement on purpose: the bar is how much they open what
+         we have already sent, this is whether they want what we sell. A
+         contact can be high on one and low on the other. */
+      render: (c) => <FitBadge fit={c.fit} />,
     },
     {
       key: 'tags',

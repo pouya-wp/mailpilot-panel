@@ -1982,3 +1982,94 @@ html[dir='rtl'] .drawer__panel {
   color: var(--bad);
   font-size: 1.22rem;
 }
+
+/* =====================  FIT  =====================
+   The band leads; the number is a detail beside it. "73" is not
+   something a reader can act on. */
+.fitbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.fitbadge__n {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  color: var(--tx-3);
+}
+.fitwhy {
+  font-size: 1.22rem;
+  line-height: 1.6;
+  color: var(--tx-2);
+}
+.fitwhy__head {
+  font-weight: 600;
+  color: var(--tx-1);
+  margin-bottom: 0.8rem;
+}
+.fitwhy__label {
+  margin: 1rem 0 0.4rem;
+  font-size: 1.12rem;
+  color: var(--tx-3);
+}
+.fitwhy__list {
+  margin: 0;
+  padding-inline-start: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.fitwhy__list--risk {
+  color: var(--tx-3);
+}
+.fitwhy__foot {
+  margin-top: 0.8rem;
+  font-size: 1.14rem;
+  color: var(--tx-3);
+}
+
+/* The fit block inside the pre-flight card. */
+.pf__fit {
+  margin-top: 1.8rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--stroke-soft);
+}
+.pf__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1.2rem;
+}
+
+/* =====================  REPLY COPILOT  =====================
+   The missing-information block is the valuable half of this
+   feature, so it is styled as an ask rather than as an error. */
+.cp__why {
+  margin: 1rem 0 0;
+  font-size: 1.22rem;
+  line-height: 1.65;
+  color: var(--tx-3);
+}
+.cp__missing {
+  margin-top: 1.2rem;
+  padding: 1.3rem 1.5rem;
+  border-radius: var(--r-md);
+  background: var(--warn-dim);
+  border: 1px solid var(--warn-edge);
+}
+.cp__missingHead {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--tx-2);
+  margin-bottom: 0.7rem;
+}
+.cp__missingList {
+  margin: 0 0 0.4rem;
+  padding-inline-start: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 1.24rem;
+  line-height: 1.6;
+  color: var(--tx-2);
+}

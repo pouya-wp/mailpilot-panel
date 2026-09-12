@@ -81,7 +81,33 @@ def list_contacts(
     # contact account, on every keystroke in the search box, growing linearly
     # with the list the customer is paying to build.
     out = paginate_sql("contacts", " AND ".join(where), params, page, size, order=order)
-    out["items"] = [ser_contact(r) for r in out["items"]]
+
+    # Fit, for this page only. Deterministic arithmetic over fields already
+    # in the row, so scoring twenty of them costs nothing worth caching --
+    # and a cache would be a second copy of a number that can go stale.
+    from .. import brandprofile, scoring
+
+    profile = brandprofile.get()
+    has_offer = bool(profile.get("offers"))
+
+    items = []
+    for row in out["items"]:
+        item = ser_contact(row)
+        if has_offer:
+            data = dict(row)
+            verdict = scoring.score_for(
+                data, profile=profile, offer=scoring.best_offer(data, profile))
+            item["fit"] = {
+                "score": verdict["score"],
+                "band": verdict["band"],
+                "confidence": verdict["research_confidence"],
+                "offer": verdict["best_offer"],
+                "reasons": verdict["reasons"],
+                "risks": verdict["risks"],
+                "version": verdict["score_version"],
+            }
+        items.append(item)
+    out["items"] = items
     return out
 
 

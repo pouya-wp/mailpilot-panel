@@ -152,6 +152,12 @@ def preflight_for_segment(segment: str = "", region: str = "",
     out["defaultIncluded"] = sum(
         n for band, n in out["fit"].items() if band in scoring.DEFAULT_INCLUDED)
 
+    # What comparable past campaigns to this group suggest. Advice, carried
+    # with its sample size so the screen can show the evidence beside it.
+    from .. import optimize
+
+    out["recommendation"] = optimize.recommend(segment) or {"enough": False, "none": True}
+
     health = senderhealth.status()
     out["senderHealth"] = {
         "status": health["status"],
