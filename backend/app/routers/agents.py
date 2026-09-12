@@ -308,6 +308,36 @@ def _send_reply(row, text: str) -> str:
     return out.get("id") or ""
 
 
+@router.post("/inbox/{thread_id}/copilot", dependencies=[_needs("inbox")])
+def copilot(thread_id: str, principal: Principal = Depends(requires("content.edit"))) -> dict:
+    """Draft a reply for a human to review. Never sends.
+
+    Sending is `/reply`, which is a separate call a person has to make
+    after reading this. Nothing here shortens that path, and an
+    unsubscribe never reaches the generator at all.
+    """
+    from .. import replycopilot
+    from ..ai_provider import AIUnavailable
+
+    row = _thread(thread_id)
+    try:
+        out = replycopilot.draft_for(row, lang=_lang())
+    except AIUnavailable as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    replycopilot.save_draft(thread_id, out, row)
+    log(kind="agent", actor=principal.id,
+        action_en=f"drafted a reply ({out['status']})",
+        action_fa="یک پیش‌نویس پاسخ نوشت", target=thread_id, tone="info")
+    return {**out, "thread": ser_thread(_thread(thread_id))}
+
+
+def _lang() -> str:
+    from .. import deployment
+
+    return deployment.get().get("default_lang") or "en"
+
+
 @router.post("/inbox/{thread_id}/reply", dependencies=[_needs("inbox")])
 def reply(
     thread_id: str, payload: ReplyIn, principal: Principal = Depends(requires("content.edit"))
@@ -348,6 +378,19 @@ def reply(
     body = ((edited["draft_en"] if edited is not None else row["draft_en"]) or "")
     if not body.strip():
         raise HTTPException(status_code=422, detail="There is nothing written to send yet")
+
+    # The conversation may have moved since this draft was written. Sending
+    # an answer to a message that has been superseded reads as not having
+    # been listening, so it is refused and the operator regenerates. Only
+    # when the operator has NOT just retyped it: an edit is them saying
+    # they have read the thread as it stands.
+    from .. import replycopilot
+
+    if edited is None and replycopilot.is_stale(row):
+        raise HTTPException(
+            status_code=409,
+            detail="This conversation has moved on since the draft was written. "
+                   "Generate it again before sending.")
     try:
         _send_reply(row, body)
     except google.GoogleError as exc:

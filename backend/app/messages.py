@@ -129,6 +129,11 @@ FA: dict[str, str] = {
     "A workspace must keep at least one owner": "هر فضای کاری باید دست‌کم یک مالک داشته باشد",
     "Only an owner can promote someone to owner": "فقط مالک می‌تواند کسی را به مالک ارتقا دهد",
     "You cannot remove yourself": "خودتان را نمی‌توانید حذف کنید",
+    # ------------------------------------------------------- reply copilot
+    "This conversation has moved on since the draft was written. "
+    "Generate it again before sending.":
+        "این گفت‌وگو بعد از نوشتن پیش‌نویس ادامه پیدا کرده. پیش از ارسال، "
+        "دوباره تولیدش کنید.",
     # --------------------------------------------------------------- A/B
     "A campaign that has already gone out cannot be split into a test":
         "کمپینی که ارسال شده را نمی‌توان به آزمون A/B تبدیل کرد",

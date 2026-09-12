@@ -506,6 +506,7 @@ def init_db() -> None:
     from .routers.chats import SCHEMA as CHAT_SCHEMA
     from .routers.design import SCHEMA as ASSET_SCHEMA, migrate as migrate_templates
     from .optimize import SCHEMA as OPTIMIZE_SCHEMA
+    from .replycopilot import migrate as migrate_threads
     from .scoring import SCHEMA as SCORING_SCHEMA
     from .senderhealth import migrate as migrate_health
     from .brandprofile import SCHEMA as BRAND_SCHEMA
@@ -525,6 +526,7 @@ def init_db() -> None:
     migrate_templates()
     migrate_brand()
     migrate_health()
+    migrate_threads()
     migrate_outbox()
     _migrate_contacts()
     _migrate_campaigns()
