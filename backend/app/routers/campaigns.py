@@ -122,17 +122,36 @@ def best_time(_: Principal = Depends(requires("analytics.view"))) -> dict:
     return sendtime.recommend()
 
 @router.get("/preflight")
-def preflight_for_segment(segment: str = "",
+def preflight_for_segment(segment: str = "", region: str = "",
                           _: Principal = Depends(requires("analytics.view"))) -> dict:
     """Who a campaign to this group would reach, before one exists.
 
     Declared above `/{campaign_id}` on purpose: FastAPI matches in order,
     and below it the word "preflight" is read as a campaign id.
     """
-    from .. import eligibility, senderhealth
+    from .. import brandprofile, eligibility, scoring, senderhealth
 
     people = segment_members(segment) if segment else []
     out = eligibility.summary("", people)
+
+    # Fit is computed over the ELIGIBLE list only. Scoring somebody who may
+    # not be written to would put them in a band on the screen and invite
+    # the question of why they are not being sent to, when the answer has
+    # nothing to do with fit.
+    verdict = eligibility.classify("", people)
+    scored = [
+        scoring.score_for(c, profile=brandprofile.get(),
+                          offer=scoring.best_offer(c, brandprofile.get()),
+                          region=region)
+        for c in verdict["eligible"]
+    ]
+    out["fit"] = scoring.distribution(scored)
+    out["fitVersion"] = scoring.SCORE_VERSION
+    # What launching right now would actually send to, under the default
+    # rule that low and medium fit are opt-in (§16.6).
+    out["defaultIncluded"] = sum(
+        n for band, n in out["fit"].items() if band in scoring.DEFAULT_INCLUDED)
+
     health = senderhealth.status()
     out["senderHealth"] = {
         "status": health["status"],

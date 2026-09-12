@@ -117,7 +117,7 @@ def enqueue(campaign_id: str, *, recipients: list[dict]) -> int:
     campaign and the last message leaving, and somebody who unsubscribes
     inside that window must not receive the rest of it.
     """
-    from . import optimize
+    from . import brandprofile, optimize, scoring
 
     now = iso()
     verdict = eligibility.classify(campaign_id, recipients)
@@ -125,9 +125,30 @@ def enqueue(campaign_id: str, *, recipients: list[dict]) -> int:
     # stay even after suppression rather than even before it.
     arms = optimize.assign(campaign_id, verdict["eligible"])
 
+    # Better-fit prospects are written FIRST. The sender drains oldest-first,
+    # so ordering the rows here is enough -- no change to the claim logic,
+    # which is what stops a message going out twice and is not worth
+    # destabilising for a sort. Nobody is skipped and nobody is added: this
+    # reorders the eligible, it does not widen them.
+    ordered = verdict["eligible"]
+    try:
+        profile = brandprofile.get()
+        if profile.get("offers"):
+            fit = {
+                (c.get("email") or "").lower(): scoring.score_for(
+                    c, profile=profile, offer=scoring.best_offer(c, profile))["score"]
+                for c in ordered
+            }
+            ordered = sorted(
+                ordered,
+                key=lambda c: fit.get((c.get("email") or "").lower(), 0),
+                reverse=True)
+    except Exception:  # noqa: BLE001 - a sort must never stop a send
+        ordered = verdict["eligible"]
+
     queued = 0
     with db.transaction():
-        for person in verdict["eligible"]:
+        for person in ordered:
             email = (person.get("email") or "").strip().lower()
             db.insert("outbox", {
                 "id": new_id("out"), "campaign_id": campaign_id,
@@ -283,7 +304,13 @@ def _claim():
     """
     while True:
         candidate = db.one(
-            "SELECT id FROM outbox WHERE status = 'queued' ORDER BY queued_at LIMIT 1")
+            # `rowid` is the tie-break, and it is load-bearing: every row of
+            # one campaign is written with the same `queued_at`, and the
+            # rows are written in fit order. Without this the send order
+            # among them is whatever SQLite happens to do, which today is
+            # insertion order and is not promised to stay that way.
+            "SELECT id FROM outbox WHERE status = 'queued' "
+            "ORDER BY queued_at, rowid LIMIT 1")
         if candidate is None:
             return None
         won = db.execute(
