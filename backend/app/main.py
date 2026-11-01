@@ -221,6 +221,14 @@ def meta() -> dict:
 
 _WEB = Path(os.environ.get("MAILPILOT_WEB", "")) if os.environ.get("MAILPILOT_WEB") else None
 
+if not _WEB or not _WEB.is_dir():
+    from fastapi.responses import RedirectResponse
+
+    @app.get("/", include_in_schema=False)
+    def dev_index_redirect(request: Request):
+        host = request.url.hostname or "127.0.0.1"
+        return RedirectResponse(f"http://{host}:4300/")
+
 if _WEB and _WEB.is_dir():
 
     @app.get("/{full_path:path}", include_in_schema=False)

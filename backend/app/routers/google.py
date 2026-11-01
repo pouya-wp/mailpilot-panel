@@ -54,6 +54,21 @@ def _origin(request: Request) -> str:
     return str(request.base_url).rstrip("/")
 
 
+def _panel_origin(request: Request) -> str:
+    """Where the frontend UI is reachable from outside.
+
+    In production or behind a reverse proxy, this matches public_url.
+    In local development, the API runs on port 8000 and the Vite frontend runs
+    on port 4300, so we redirect the user's browser back to the frontend port.
+    """
+    if settings.public_url:
+        return settings.public_url
+    host = request.url.hostname or "127.0.0.1"
+    if request.url.port and request.url.port != 4300:
+        return f"{request.url.scheme}://{host}:4300"
+    return str(request.base_url).rstrip("/")
+
+
 def redirect_uri(request: Request) -> str:
     return f"{_origin(request)}/api/google/callback"
 
@@ -125,7 +140,7 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
     """
     # `tab=sending` matters: Settings opens on the agent tab, and the card that
     # reports the result of this redirect only exists on the sending one.
-    back = f"{_origin(request)}/#/settings?tab=sending"
+    back = f"{_panel_origin(request)}/#/settings?tab=sending"
 
     if error:
         return RedirectResponse(f"{back}&google=denied", status_code=303)

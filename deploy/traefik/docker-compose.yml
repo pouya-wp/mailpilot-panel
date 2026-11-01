@@ -1,0 +1,43 @@
+# Traefik, the front door on 80/443, for a server that does not have one yet.
+#
+#     scp deploy/traefik/docker-compose.yml root@HOST:/opt/traefik/
+#     ssh root@HOST 'cd /opt/traefik && docker compose up -d'
+#
+# Run this ONCE per server, and only where nothing else already owns 80/443.
+# The panel container is found through its labels (see remote.sh), so the
+# entrypoint and resolver names below must match them: websecure, letsencrypt.
+#
+# It stays on Docker's default bridge on purpose. remote.sh starts the panel
+# there with a plain `docker run`, and a dedicated network would have to be
+# re-attached on every deploy, which is the step somebody forgets.
+#
+# exposedByDefault=false: a container is routed only when it asks to be, so
+# nothing else that ever runs on this machine is published by accident.
+
+services:
+  traefik:
+    # 3.6.1+ speaks the Docker API version that Docker 29 requires; older
+    # releases see no containers at all and route nothing.
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+    network_mode: bridge
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # certificates survive a container rebuild, so a redeploy does not spend
+      # Let's Encrypt's rate limit re-issuing the same one
+      - ./letsencrypt:/letsencrypt

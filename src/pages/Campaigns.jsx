@@ -537,23 +537,17 @@ function CampaignDrawer({ campaign, onClose, onToast }) {
             <div className="mail__body" dir={lang === 'fa' ? 'rtl' : 'ltr'}>
               <div className="mail__brand">{brand.name}</div>
               <h2 className="mail__subject">{loc(c.subject, lang)}</h2>
-              <p className="mail__p">
-                {lang === 'fa'
-                  ? 'سلام {{first_name}} عزیز، چیزی برایت کنار گذاشته‌ایم. این ایمیل را ایجنت بر اساس رفتار خرید و زمان‌های بازشدن تو نوشته است.'
-                  : 'Hi {{first_name}}, we set something aside for you. This email was written by the agent from your purchase history and open times.'}
-              </p>
-              <p className="mail__p">
-                {lang === 'fa'
-                  ? 'دسترسی از همین حالا باز است و تا جمعه ادامه دارد.'
-                  : 'Access is open from now and runs until Friday.'}
-              </p>
-              <a className="mail__cta">{lang === 'fa' ? 'دیدن مجموعه' : 'Shop the collection'}</a>
-              <div className="mail__hr" />
-              <div className="mail__foot">
-                {lang === 'fa'
-                  ? 'این ایمیل را دریافت کردید چون مشترک خبرنامهٔ آکمی هستید. لغو اشتراک'
-                  : 'You are receiving this because you subscribed to Acme. Unsubscribe'}
-              </div>
+              {loc(c.body, lang) ? (
+                <div
+                  className="mail__content"
+                  style={{ marginTop: '1.4rem', lineHeight: '1.65', fontSize: '1.45rem' }}
+                  dangerouslySetInnerHTML={{ __html: loc(c.body, lang) }}
+                />
+              ) : (
+                <p className="mail__p muted">
+                  {lang === 'fa' ? 'بدون متن' : 'No message body'}
+                </p>
+              )}
             </div>
           </div>
         )}

@@ -474,6 +474,25 @@ html[lang='fa'] .kpi__value {
   height: 4rem;
   font-size: inherit;
   color: inherit;
+  border: none;
+  background: transparent;
+  outline: none;
+  border-radius: 0;
+}
+.input__el:focus,
+.input__el:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+.input__el:-webkit-autofill,
+.input__el:-webkit-autofill:hover,
+.input__el:-webkit-autofill:focus,
+.input__el:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--tx-1);
+  -webkit-box-shadow: 0 0 0 1000px transparent inset;
+  transition: background-color 50000s ease-in-out 0s;
+  border-radius: 0;
 }
 .input__el::placeholder {
   color: var(--tx-4);
@@ -1518,7 +1537,7 @@ html[dir='rtl'] .drawer__panel {
    the dark surfaces without needing a per-theme value.
    ============================================================ */
 :where(
-  a, button, input, select, textarea, summary,
+  a, button, input:not(.input__el), select:not(.uselect__el), textarea:not(.input), summary,
   [tabindex]:not([tabindex='-1']),
   .btn, .iconbtn, .checkbox, .tabs__btn, .uselect__el,
   .menu__item, .seg__btn, .chiplink, .starter
@@ -1528,12 +1547,23 @@ html[dir='rtl'] .drawer__panel {
   border-radius: var(--r-sm);
 }
 
-/* The two that draw their own box need the ring on the box, not on
+/* The controls that draw their own box need the ring on the box, not on
    the invisible input behind it. */
 .checkbox:focus-within .checkbox__box,
 .checkbox input:focus-visible + .checkbox__box {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+.input:has(:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.input .input__el:focus-visible,
+.cmdk__input input:focus-visible {
+  outline: none;
+  border-radius: 0;
 }
 
 /* Skip-to-content: the first thing a keyboard reaches, and until it

@@ -29,7 +29,7 @@ import { useI18n, loc } from '../i18n'
 import { api } from '../api/client'
 import { invalidate } from '../api/hooks'
 import { navigate } from '../router'
-import { Button, Card, Field, Input, Modal, Select, Segmented, Toggle } from '../ui'
+import { Button, Card, Field, Input, Modal, Select, Segmented, Textarea, Toggle } from '../ui'
 import { IcCheckC, IcSearch, IcSend, IcWarn } from './NavIcons'
 
 /* The workspace's own hourly cap is the real control — the sender enforces
@@ -40,6 +40,22 @@ const RATES = [10, 25, 50, 100, 250]
    this only stops the reader typing a number that will be silently
    clamped. The server clamps regardless. */
 const FIND_CEILING = 40
+
+const DEFAULT_OUTREACH_SUBJECT = "Creative Dev / WebGL exploration for {{company}}"
+const DEFAULT_OUTREACH_BODY = `Hi {{first_name}},
+
+Loved the craft and motion details on your recent work at {{company}}.
+
+I'm a creative front-end developer specialising in WebGL, custom GLSL shaders, and baked-physics micro-interactions (Three.js / GSAP).
+
+Just launched my interactive portfolio around the concept of kintsugi and real-time fractured stone physics:
+https://p26.vercel.app/
+
+Are you currently open to freelance support or project collaborations on upcoming interactive builds?
+
+Best regards,
+Pouya Sadeghpour
+https://p26.vercel.app/`
 
 export default function CampaignWizard({ open, onClose, onToast }) {
   const { t, lang, nf, pct } = useI18n()
@@ -61,8 +77,9 @@ export default function CampaignWizard({ open, onClose, onToast }) {
 
   // step 3
   const [templates, setTemplates] = useState([])
-  const [template, setTemplate] = useState('')
-  const [subject, setSubject] = useState('')
+  const [template, setTemplate] = useState('plain')
+  const [subject, setSubject] = useState(DEFAULT_OUTREACH_SUBJECT)
+  const [bodyText, setBodyText] = useState(DEFAULT_OUTREACH_BODY)
   /* 'manual' is the flow this product has always had. 'professional'
      researches and writes a separate email for each recipient, so it does
      not ask for a subject -- there is one per prospect. */
@@ -100,7 +117,7 @@ export default function CampaignWizard({ open, onClose, onToast }) {
     const id = setTimeout(() => {
       setStep(1); setCategory(''); setRegion(''); setCount(20)
       setFound(null); setKept(null)
-      setTemplate(''); setSubject('')
+      setTemplate('plain'); setSubject(DEFAULT_OUTREACH_SUBJECT); setBodyText(DEFAULT_OUTREACH_BODY)
       setWhen('now'); setAt(''); setRate(50)
       setAbField(''); setAbA(''); setAbB(''); setFlight(null)
       setWithMedium(false); setWithLow(false)
@@ -205,13 +222,25 @@ export default function CampaignWizard({ open, onClose, onToast }) {
 
   /* ---- step 4: make the campaign, attach the group, start it ---- */
   const launch = async () => {
-    if (!template) return onToast?.(t('wiz.needTemplate'))
+    if (!template && template !== 'plain') return onToast?.(t('wiz.needTemplate'))
     // professional mode writes its own subject, one per prospect
     if (mode === 'manual' && !subject.trim()) return onToast?.(t('wiz.needSubject'))
     setBusy(true)
     try {
-      // the design's own HTML becomes the campaign's body
-      const { html } = await api.get(`/templates/${template}/html`)
+      let html = ''
+      if (template && template !== 'plain') {
+        const res = await api.get(`/templates/${template}/html`)
+        html = res.html
+      } else {
+        const text = (bodyText || '').trim() || DEFAULT_OUTREACH_BODY
+        html = text
+          .split(/\n\n+/)
+          .map(
+            (p) =>
+              `<p style="margin: 0 0 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a1a;">${p.replace(/\n/g, '<br/>')}</p>`
+          )
+          .join('')
+      }
       const name = kept?.group || subject.trim()
       const made = await api.post('/campaigns', {
         name: { en: name, fa: name },
@@ -390,36 +419,40 @@ export default function CampaignWizard({ open, onClose, onToast }) {
               </>
             )}
 
-            {templates.length === 0 ? (
-              <Card>
-                <div className="strong">{t('wiz.noTemplates')}</div>
-                <div className="faint">{t('wiz.noTemplatesHint')}</div>
-                <Button size="sm" variant="ghost" style={{ marginTop: '1.2rem' }}
-                        onClick={() => { onClose?.(); navigate('designer') }}>
-                  {t('wiz.goDesigner')}
-                </Button>
-              </Card>
-            ) : (
-              <Field label={t('wiz.pickTemplate')} required>
-                <Select
-                  value={template}
-                  onChange={(v) => {
-                    setTemplate(v)
-                    // the design's own subject is a better start than an empty box
+            <Field label={lang === 'fa' ? 'نوع قالب ایمیل' : 'Email Format'} required>
+              <Select
+                value={template}
+                onChange={(v) => {
+                  setTemplate(v)
+                  if (v !== 'plain') {
                     const pick = templates.find((x) => x.id === v)
                     if (pick?.subject && !subject.trim()) setSubject(pick.subject)
-                  }}
-                  options={templates.map((x) => ({ value: x.id, label: loc(x.name, lang) }))}
-                />
-              </Field>
-            )}
-            {/* Professional mode writes a subject per prospect, so asking
-                for one global subject here would be asking for something
-                that gets thrown away. */}
+                  }
+                }}
+                options={[
+                  {
+                    value: 'plain',
+                    label: lang === 'fa' ? '✉️ متن ساده (Plain Text - ضداسپم، مناسب ارتباط شخصی)' : '✉️ Plain Text (Direct Outreach - Anti-Spam)',
+                  },
+                  ...templates.map((x) => ({ value: x.id, label: `🎨 ${loc(x.name, lang)}` })),
+                ]}
+              />
+            </Field>
+
             {mode === 'manual' && (
-              <Field label={t('wiz.subject')} hint={t('wiz.subjectHint')} required>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-              </Field>
+              <>
+                <Field label={lang === 'fa' ? 'موضوع ایمیل (Subject)' : 'Subject'} hint={t('wiz.subjectHint')} required>
+                  <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
+                </Field>
+                {template === 'plain' && (
+                  <Field
+                    label={lang === 'fa' ? 'متن پیام (Plain Text)' : 'Message Body'}
+                    hint={lang === 'fa' ? 'متن ارسالی به هر استودیو (پشتیبانی از متغیرهای نام و شرکت)' : 'Personal message to send to each studio'}
+                  >
+                    <Textarea rows={8} value={bodyText} onChange={(e) => setBodyText(e.target.value)} />
+                  </Field>
+                )}
+              </>
             )}
 
             {/* Advice from comparable past campaigns, with the evidence
